@@ -1,0 +1,13 @@
+# Segredos (tokens, senhas): nunca versionar
+segredos/
+*.env
+.env*
+
+# O repositório é público: dados do negócio ficam só no computador do dono
+amostras-saipos/
+prototipo/
+marca/
+CLAUDE.md
+
+# Configuração local do Claude Code
+.claude/
