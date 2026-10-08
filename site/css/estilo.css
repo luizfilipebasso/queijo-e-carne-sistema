@@ -139,6 +139,7 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 
 .aviso { font-size: 13.5px; line-height: 1.5; color: var(--ink-2); background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 .aviso-erro { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-line); }
+.aviso-setor { margin-bottom: 16px; }
 .tag-inline { font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--card-2); border: 1px solid var(--line); padding: 1px 7px; border-radius: 6px; margin-left: 8px; }
 
 .toast {

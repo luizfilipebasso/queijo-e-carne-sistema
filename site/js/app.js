@@ -13,11 +13,6 @@ const RODAPE = 'Queijo e Carne Burger LTDA — CNPJ 37.208.946/0001-58';
 const CHAVE_UNIDADE = 'qc_unidade';
 const CHAVE_MES = 'qc_mes';
 
-// Abas que ainda serão construídas, com a etapa do plano em que chegam.
-const EM_CONSTRUCAO = {
-  incentivo: ['Meu incentivo', 'Quanto você vai receber no mês e o detalhamento. Chega na etapa 5.'],
-};
-
 // Mês escolhido no topo: vale enquanto a aba do navegador estiver aberta; ao abrir de novo, volta ao mês atual.
 function lerMesSalvo() {
   let salvo = null;
@@ -128,24 +123,11 @@ function telaEscolherSetor(ctx) {
 
 // ---------- Sistema ----------
 
-function telaEmConstrucao(conteudo, id, ctx) {
-  const [titulo, texto] = EM_CONSTRUCAO[id];
-  const secao = el('section', {},
-    el('p', { class: 'section-title' }, titulo),
-    el('p', { class: 'section-desc' }, texto),
-  );
-  if (id === 'incentivo' && ctx.vinculo && !ctx.vinculo.setor) {
-    secao.append(el('p', { class: 'aviso' },
-      `Você indicou o setor ${ROTULO_SETOR[ctx.vinculo.setor_indicado] || '—'}. Aguardando o dono confirmar.`));
-  }
-  conteudo.append(secao);
-}
-
 // Abas conforme o papel na unidade selecionada.
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
-  // Etiquetas: só para funcionários (decisão do dono, 08/10/2026).
-  if (ctx.papel === 'funcionario') return [['incentivo', 'Meu incentivo'], ['indicadores', 'Indicadores'], ['etiquetas', 'Etiquetas']];
+  // Funcionário: Indicadores (com os prêmios no topo) e Etiquetas (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
+  if (ctx.papel === 'funcionario') return [['indicadores', 'Indicadores'], ['etiquetas', 'Etiquetas']];
   const abas = [['painel', 'Painel'], ...comparar, ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
@@ -162,13 +144,17 @@ function montarSistema(ctx) {
     const id = abas.some(([a]) => a === pedida) ? pedida : abas[0][0];
     botoes.forEach((b) => b.classList.toggle('active', b.dataset.aba === id));
     limpar(conteudo);
+    // Funcionário com setor ainda não confirmado: lembrete no topo de qualquer aba.
+    if (ctx.papel === 'funcionario' && ctx.vinculo && !ctx.vinculo.setor) {
+      conteudo.append(el('p', { class: 'aviso aviso-setor' },
+        `Você indicou o setor ${ROTULO_SETOR[ctx.vinculo.setor_indicado] || '—'}. Aguardando o dono confirmar.`));
+    }
     if (id === 'pessoas') telaPessoas(conteudo, ctx);
     else if (id === 'lancamentos') telaLancamentos(conteudo, ctx);
     else if (id === 'painel') telaPainel(conteudo, ctx);
     else if (id === 'indicadores') telaIndicadores(conteudo, ctx);
     else if (id === 'comparar') telaComparar(conteudo, ctx);
     else if (id === 'etiquetas') telaEtiquetas(conteudo, ctx);
-    else telaEmConstrucao(conteudo, id, ctx);
   };
   window.onhashchange = mostrar;
 
