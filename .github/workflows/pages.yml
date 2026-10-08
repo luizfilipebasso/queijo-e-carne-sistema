@@ -23,6 +23,20 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # O GitHub Pages manda o navegador guardar cada arquivo por 10 min. Para cada publicação valer na hora
+      # (e o navegador não misturar arquivos novos e antigos), todo .js e .css ganha "?v=<versão>" no endereço.
+      - name: Marcar a versão nos arquivos
+        run: |
+          v="${GITHUB_SHA::7}"
+          mapa=""
+          for f in site/js/*.js; do
+            n="$(basename "$f")"
+            mapa="${mapa}\"./js/${n}\":\"./js/${n}?v=${v}\","
+          done
+          mapa="{\"imports\":{${mapa%,}}}"
+          sed -i "s#href=\"css/estilo.css\"#href=\"css/estilo.css?v=${v}\"#; s#src=\"js/app.js\"#src=\"js/app.js?v=${v}\"#" site/index.html site/privacidade.html
+          sed -i "s#<!--VERSAO-->#<script type=\"importmap\">${mapa}</script>#" site/index.html
+          grep -q 'type="importmap"' site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
