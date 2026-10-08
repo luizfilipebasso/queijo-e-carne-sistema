@@ -216,7 +216,17 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 .sec-kpis { background: none; border: 0; box-shadow: none; padding: 0; }
 .sec-kpis > .section-head { margin-bottom: 14px; }
 .ind-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; box-shadow: var(--shadow); min-width: 0; }
-.ind-resumo { grid-column: 1 / -1; }
+/* Prêmios por pessoa: mesmo destaque do cartão de faturamento (pedido do dono, 08/10/2026;
+   exceção ao "único destaque" do DESIGN.md). */
+.ind-resumo {
+  grid-column: 1 / -1;
+  background: var(--destaque-bg); border-color: rgba(240, 177, 58, .25);
+  --ink: #FBF3DC; --ink-2: #D3C6A8; --ink-3: #B0A287; --line: rgba(251, 243, 220, .14);
+  --track: rgba(251, 243, 220, .14); --accent-ink: #F0B13A; --card-2: rgba(251, 243, 220, .06);
+  color: var(--ink);
+}
+.ind-resumo .stat-sub { font-size: 13px; color: var(--ink-2); }
+.ind-resumo .stat-value { color: var(--destaque-numero); font-size: clamp(40px, 5vw, 56px); letter-spacing: -.025em; line-height: 1; margin: 8px 0 8px; }
 .ind-previa { margin-top: 16px; }
 .ind-card.tone-super, .ind-card.tone-meta { border-color: var(--good-line); }
 .ind-card.tone-fora { border-color: var(--bad-line); }
