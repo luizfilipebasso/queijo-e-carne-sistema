@@ -16,6 +16,9 @@ export const CANAIS = {
   keeta: ['Keeta', 'var(--canal-keeta)'],
   '99food': ['99 Food', 'var(--canal-99food)'],
   site: ['Site Delivery (Saipos)', 'var(--canal-site)'],
+  // Salão de SP separado no Painel (dono, 08/10/2026): totens do iFood e pedidos na ficha.
+  totem_ifood: ['Totem iFood (salão)', 'var(--canal-totem)'],
+  ficha_salao: ['Ficha Salão', 'var(--canal-ficha)'],
   outro: ['Outros', 'var(--line-strong)'],
 };
 

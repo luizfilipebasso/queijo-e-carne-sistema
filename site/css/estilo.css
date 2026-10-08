@@ -26,7 +26,7 @@
   --destaque-bg: #2B1E12; --destaque-numero: #F2B646;
   --aba-ativa: #F0B13A; --aba-ativa-ink: #231710;
   --canal-ifood: #E9A93A; --canal-alloy: #6CA3D9; --canal-telefone: #A98BD6; --canal-goomer: #7DBE7E; --canal-dm: #E58A7B;
-  --canal-keeta: #4FB3AA; --canal-99food: #D9739E; --canal-site: #A08A72;
+  --canal-keeta: #4FB3AA; --canal-99food: #D9739E; --canal-site: #A08A72; --canal-totem: #B9752E; --canal-ficha: #8FA6BF;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
