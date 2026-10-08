@@ -127,8 +127,8 @@ function telaEscolherSetor(ctx) {
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
   // Funcionário: Indicadores (com os prêmios no topo) e Etiquetas (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
-  if (ctx.papel === 'funcionario') return [['indicadores', 'Indicadores'], ['etiquetas', 'Etiquetas']];
-  const abas = [['painel', 'Painel'], ['indicadores', 'Indicadores'], ...comparar, ['lancamentos', 'Lançamentos']];
+  if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas']];
+  const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
 }

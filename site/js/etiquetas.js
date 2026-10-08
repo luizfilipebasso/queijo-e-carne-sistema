@@ -291,7 +291,7 @@ export function telaEtiquetas(conteudo, ctx) {
           'Este navegador não consegue falar com a impressora por Bluetooth. Para imprimir, abra o sistema no Chrome do Android ou do computador. (No iPhone não funciona.)'),
         el('div', { class: 'form-row' }, el('p', { class: 'form-label' }, 'Insumo'), listaInsumos),
         el('div', { class: 'form-row' }, el('p', { class: 'form-label' }, 'Forma de armazenamento'), listaMetodos),
-        el('div', { class: 'form-row-pair form-row' },
+        el('div', { class: 'form-row-pair form-row et-par' },
           el('div', {}, el('label', { class: 'form-label' }, 'Manipulação'), campoData),
           el('div', {}, el('p', { class: 'form-label' }, 'Responsável'), el('p', { class: 'et-responsavel' }, estado.responsavel))),
         el('div', { class: 'form-row' },

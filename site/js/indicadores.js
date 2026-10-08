@@ -197,7 +197,7 @@ export async function telaIndicadores(conteudo, ctx) {
   const mes = ctx.mes;
   const { data, error } = await supabase.rpc('indicadores_mes', { p_unidade: ctx.unidade.codigo, p_mes: mes });
   if (error) {
-    conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar os Indicadores: ' + error.message)));
+    conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar o Desempenho: ' + error.message)));
     return;
   }
   renderizarIndicadores(conteudo, data, { titulo: `Metas e avaliações · ${ctx.unidade.nome}` });

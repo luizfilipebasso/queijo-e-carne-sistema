@@ -288,6 +288,10 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 /* ---------- formulários e botões ---------- */
 .form-row { margin-bottom: 16px; }
 .form-row-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-pair > * { min-width: 0; }
+/* iPhone: campos de data ignoram a largura e invadem o vizinho; sem a aparência nativa, respeitam a coluna. */
+input[type="date"].form-input, input[type="datetime-local"].form-input { -webkit-appearance: none; appearance: none; min-width: 0; min-height: 43px; text-align: left; }
+input[type="date"].form-input::-webkit-date-and-time-value, input[type="datetime-local"].form-input::-webkit-date-and-time-value { text-align: left; }
 .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; }
 .form-input { width: 100%; background: var(--card-2); border: 1px solid var(--line-strong); color: var(--ink); font-size: 14.5px; padding: 10px 12px; border-radius: 8px; }
 .form-input::placeholder { color: var(--ink-3); opacity: .7; }
@@ -458,6 +462,7 @@ button:disabled { opacity: .55; cursor: wait; }
   section { padding: 18px; }
   .ind-card { padding: 18px; }
   .form-row-pair, .form-grid { gap: 10px; }
+  .et-par { grid-template-columns: 1fr; }
   .stat-value { font-size: 28px; }
   .grid-2 > div:first-child { padding-right: 14px; }
   .grid-2 > div:last-child { padding-left: 14px; }

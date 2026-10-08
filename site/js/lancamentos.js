@@ -110,7 +110,7 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
       if (problema) return avisar(problema, 'erro');
       const { error } = await supabase.from(tabela).upsert({ ...chave, ...extras?.(), ...valores }, { onConflict: conflito });
       if (error) return avisar('Não foi possível salvar: ' + error.message, 'erro');
-      avisar('Lançado! Já aparece em Indicadores.');
+      avisar('Lançado! Já aparece em Desempenho.');
       carregar(); carregarRecentes();
     },
   },
