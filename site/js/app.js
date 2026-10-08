@@ -129,7 +129,8 @@ function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
   // Funcionário: Desempenho (com os prêmios no topo), Etiquetas e Links importantes (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
   if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
-  const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos']];
+  // Etiquetas: liberada também para dono e gerente (dono, 08/10/2026).
+  const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos'], ['etiquetas', 'Etiquetas']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
 }
