@@ -237,7 +237,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
       resumo,
       r.aguardando.meta && cardTempo('Aguardando entregador', r.aguardando, d.mes,
         r.aguardando.excluidos ? `${r.aguardando.excluidos} pedido(s) acima de ${Math.round(r.aguardando.limiteSeg / 60)} min fora da média` : 'entregas do mês'),
-      cardTempo(cozinhaTodos ? 'Cozinha' : 'Cozinha (entrega)', r.cozinha, d.mes,
+      cardTempo(cozinhaTodos ? 'Tempo de preparo' : 'Cozinha (entrega)', r.cozinha, d.mes,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : quaisCozinha,
         cozinhaTodos ? 'entregas, balcão e salão' : 'só entregas'),
       ...(r.errosUnificado ? [cardErros(null)] : [cardErros('atendimento'), cardErros('cozinha')]),

@@ -329,6 +329,8 @@ button:disabled { opacity: .55; cursor: wait; }
 
 /* ---------- Comparar ---------- */
 .cmp-unidade { display: flex; align-items: center; gap: 8px; }
+.cmp-total-bloco .stat-value { color: var(--accent-ink); font-weight: 700; }
+.cmp-total-bloco .stat-sub:first-child { font-weight: 600; color: var(--ink); }
 .cmp-nota { margin: 14px 0 0; }
 .cmp-rolagem { overflow-x: auto; }
 .cmp-tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
