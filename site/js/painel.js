@@ -12,6 +12,10 @@ export const CANAIS = {
   telefone: ['WhatsApp, Insta e telefone', 'var(--canal-telefone)'],
   goomer: ['Goomer (totens)', 'var(--canal-goomer)'],
   delivery_much: ['Delivery Much', 'var(--canal-dm)'],
+  // Canais de SP (08/10/2026). Cada unidade mostra só os canais em que vendeu.
+  keeta: ['Keeta', 'var(--canal-keeta)'],
+  '99food': ['99 Food', 'var(--canal-99food)'],
+  site: ['Site Delivery (Saipos)', 'var(--canal-site)'],
   outro: ['Outros', 'var(--line-strong)'],
 };
 
@@ -97,13 +101,14 @@ export async function telaPainel(conteudo, ctx) {
 
   const t = p.ticket;
   const metaTicket = (k) => (p.metas?.[k]?.meta ? ` · meta ${reais(p.metas[k].meta, 0)}` : '');
+  // Salão (gente comendo na loja) só existe em SP: a coluna aparece quando houve pedido de salão no mês.
+  const tipos = [['balcao', 'Balcão / retirada'], ...(t.salao?.pedidos ? [['salao', 'Salão']] : []), ['delivery', 'Delivery']];
   const secTicket = el('section', { class: 'sec-ticket' },
     cabecalho('Ticket médio (acumulado mensal)', 'sem fiado', 'etiqueta'),
-    el('div', { class: 'grid-2' },
-      el('div', {}, el('p', { class: 'stat-sub' }, 'Balcão / retirada'), el('p', { class: 'stat-value' }, t.balcao?.valor ? reais(t.balcao.valor) : '—'),
-        el('p', { class: 'stat-sub' }, `${inteiro(t.balcao?.pedidos)} pedidos${metaTicket('ticket_balcao')}`)),
-      el('div', {}, el('p', { class: 'stat-sub' }, 'Delivery'), el('p', { class: 'stat-value' }, t.delivery?.valor ? reais(t.delivery.valor) : '—'),
-        el('p', { class: 'stat-sub' }, `${inteiro(t.delivery?.pedidos)} pedidos${metaTicket('ticket_delivery')}`))),
+    el('div', { class: tipos.length === 3 ? 'grid-3' : 'grid-2' },
+      tipos.map(([k, rotulo]) => el('div', {},
+        el('p', { class: 'stat-sub' }, rotulo), el('p', { class: 'stat-value' }, t[k]?.valor ? reais(t[k].valor) : '—'),
+        el('p', { class: 'stat-sub' }, `${inteiro(t[k]?.pedidos)} pedidos${metaTicket(`ticket_${k}`)}`)))),
   );
 
   const fimQuinzena = (inicio) => {

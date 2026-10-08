@@ -12,8 +12,12 @@ const CANAIS: Record<string, string> = {
   'Delivery Much': 'delivery_much',
   'Delivery Much V2': 'delivery_much',
   'Goomer': 'goomer',
+  'Keeta': 'keeta',
+  '99 Food': '99food',
+  'Site Delivery (SAIPOS)': 'site',
 };
-const TIPOS: Record<number, string> = { 1: 'delivery', 2: 'balcao' };
+// 4 = pedido com ficha, consumido no salão (só SP tem salão; decisão do dono, 08/10/2026).
+const TIPOS: Record<number, string> = { 1: 'delivery', 2: 'balcao', 4: 'salao' };
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },

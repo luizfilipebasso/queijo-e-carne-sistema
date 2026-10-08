@@ -14,6 +14,7 @@ const LINHAS = [
   ['Faturamento', (x) => x.faturamento, (v) => reais(v, 0)],
   ['Pedidos', (x) => x.pedidos, (v) => Number(v).toLocaleString('pt-BR')],
   ['Ticket Balcão', (x) => x.ticket_balcao, (v) => reais(v), 'ticket_balcao'],
+  ['Ticket Salão', (x) => x.ticket_salao, (v) => reais(v)],
   ['Ticket Delivery', (x) => x.ticket_delivery, (v) => reais(v), 'ticket_delivery'],
   ['Tempo de cozinha', (x) => x.seg_cozinha, mmss, 'cozinha'],
   ['Aguardando entregador', (x) => x.seg_aguardando, mmss, 'aguardando'],
