@@ -178,13 +178,11 @@ function montarSistema(ctx) {
     : el('span', { class: 'unidade-fixa' }, ctx.unidade.nome);
 
   // Mês consultado: do início do projeto até o mês atual. Painel, Comparar e Indicadores seguem esta escolha.
-  const rotuloMes = el('small', { id: 'rotulo-mes' }, ctx.mes === mesAtual() ? 'Mês vigente' : 'Mês consultado');
   const seletorMes = el('select', {
-    class: 'mes-select', 'aria-labelledby': 'rotulo-mes',
+    class: 'mes-select', 'aria-label': 'Mês',
     onchange: (e) => {
       ctx.mes = e.target.value;
       salvarMes(ctx.mes);
-      rotuloMes.textContent = ctx.mes === mesAtual() ? 'Mês vigente' : 'Mês consultado';
       mostrar();
     },
   }, mesesDisponiveis().map((m) => el('option', { value: m, selected: m === ctx.mes }, nomeMes(m))));
@@ -196,7 +194,7 @@ function montarSistema(ctx) {
       el('nav', { class: 'tabs', 'aria-label': 'Abas' }, botoes),
       el('div', { class: 'barra-direita' },
         seletor,
-        el('div', { class: 'month-badge' }, rotuloMes, seletorMes),
+        el('div', { class: 'month-badge' }, seletorMes),
         el('button', { class: 'btn-sair', onclick: sair }, 'Sair')),
     ),
     conteudo,
