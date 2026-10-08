@@ -96,11 +96,11 @@ function linha(rotulo, detalhe, valor, status, pendente, premioValor) {
 
 const PUBLICO = { todos: 'Todos', cozinha: 'Cozinha', atendimento: 'Atendimento' };
 
-function cardTempo(titulo, item, extra) {
+function cardTempo(titulo, item, mes, extra) {
   const m = item.meta;
   const diferenca = item.valor !== null && m ? Math.round(item.valor - m.meta) : null;
   return card({
-    titulo, sub: `só entregas, ${rotuloMes(d.mes)}, sem fiado`, publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
+    titulo, sub: `só entregas, ${rotuloMes(mes)}, sem fiado`, publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, 'Tempo médio'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, item.valor !== null ? mmss(item.valor) : '—'), selo(item.status, 'Sem dados')),
@@ -186,8 +186,8 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
     cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
     el('div', { class: 'ind-grid' },
       resumo,
-      cardTempo('Aguardando entregador', r.aguardando),
-      cardTempo('Cozinha (entrega)', r.cozinha,
+      cardTempo('Aguardando entregador', r.aguardando, d.mes),
+      cardTempo('Cozinha (entrega)', r.cozinha, d.mes,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : 'entregas do mês'),
       cardCmv, cardNotas, cardNutri, cardErros)),
   );
