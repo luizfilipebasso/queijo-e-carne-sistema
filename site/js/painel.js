@@ -1,23 +1,27 @@
 // Tela Painel (dono e gerente): vendas do mês vindas da Saipos.
 import { supabase } from './supabase.js';
 import { el } from './util.js';
-import { hojeBrasil, dataBR } from './lancamentos.js';
+import { dataBR } from './lancamentos.js';
+import { rotuloMes } from './meses.js';
+import { icone } from './icones.js';
 
+// Cores dos canais: tokens do DESIGN.md (definidos em estilo.css).
 export const CANAIS = {
-  ifood: ['iFood', '#F8A30D'],
-  alloy: ['Alloy (Liga)', '#29B6F6'],
-  telefone: ['WhatsApp, Insta e telefone', '#AB47BC'],
-  goomer: ['Goomer (totens)', '#66BB6A'],
-  delivery_much: ['Delivery Much', '#26A69A'],
-  outro: ['Outros', '#7A6754'],
+  ifood: ['iFood', 'var(--canal-ifood)'],
+  alloy: ['Alloy (Liga)', 'var(--canal-alloy)'],
+  telefone: ['WhatsApp, Insta e telefone', 'var(--canal-telefone)'],
+  goomer: ['Goomer (totens)', 'var(--canal-goomer)'],
+  delivery_much: ['Delivery Much', 'var(--canal-dm)'],
+  outro: ['Outros', 'var(--line-strong)'],
 };
 
 export const reais = (n, casas = 2) => 'R$ ' + Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 export const pct = (n, casas = 1) => Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }) + '%';
 const inteiro = (n) => Number(n ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
-export function cabecalho(titulo, etiqueta) {
+export function cabecalho(titulo, etiqueta, nomeIcone) {
   return el('div', { class: 'section-head' },
+    nomeIcone && icone(nomeIcone),
     el('span', { class: 'title' }, titulo),
     etiqueta && el('span', { class: 'tag-example' }, etiqueta));
 }
@@ -51,11 +55,13 @@ function blocoCombo(titulo, linhas, total) {
 }
 
 export async function telaPainel(conteudo, ctx) {
-  const mes = hojeBrasil().slice(0, 8) + '01';
+  const mes = ctx.mes;
   const u = ctx.unidade.codigo;
   const [{ data: p, error }, { data: cmv }] = await Promise.all([
     supabase.rpc('painel_mes', { p_unidade: u, p_mes: mes }),
-    supabase.from('cmv_quinzena').select('*').eq('unidade', u).order('inicio', { ascending: false }).limit(1).maybeSingle(),
+    // Última quinzena lançada dentro do mês escolhido (as quinzenas começam no dia 1 ou 16).
+    supabase.from('cmv_quinzena').select('*').eq('unidade', u).in('inicio', [mes, mes.slice(0, 8) + '16'])
+      .order('inicio', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (error) {
     conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar o Painel: ' + error.message)));
@@ -63,15 +69,15 @@ export async function telaPainel(conteudo, ctx) {
   }
 
   const fat = Number(p.faturamento);
-  const canais = p.canais.map((c) => ({ ...c, rotulo: CANAIS[c.canal]?.[0] ?? c.canal, cor: CANAIS[c.canal]?.[1] ?? '#7A6754' }));
+  const canais = p.canais.map((c) => ({ ...c, rotulo: CANAIS[c.canal]?.[0] ?? c.canal, cor: CANAIS[c.canal]?.[1] ?? CANAIS.outro[1] }));
 
-  const secFaturamento = el('section', {},
-    cabecalho(`Faturamento acumulado · ${ctx.unidade.nome}`, p.atualizado_ate ? `até ${dataBR(p.atualizado_ate)}` : 'sem vendas ainda'),
-    !ctx.unidade.sincronizar && el('p', { class: 'aviso', style: 'margin-bottom:14px' },
-      'A busca automática na Saipos ainda não está ligada para esta unidade (falta o token).'),
-    el('div', { class: 'hero-wrap' }, el('p', { class: 'hero-value' }, el('sup', {}, 'R$ '), Math.round(fat).toLocaleString('pt-BR'))),
-    el('p', { class: 'stat-sub', style: 'margin:14px 0 4px;' },
+  const secFaturamento = el('section', { class: 'sec-faturamento' },
+    cabecalho(`Faturamento acumulado · ${ctx.unidade.nome}`, p.atualizado_ate ? `até ${dataBR(p.atualizado_ate)}` : 'sem vendas ainda', 'dinheiro'),
+    el('div', { class: 'hero-wrap' }, el('p', { class: 'hero-value' }, el('sup', {}, 'R$'), Math.round(fat).toLocaleString('pt-BR'))),
+    el('p', { class: 'stat-sub' },
       p.ultimo_dia?.data ? `Dia ${dataBR(p.ultimo_dia.data)}: ${reais(p.ultimo_dia.faturamento)} · ${inteiro(p.pedidos)} pedidos no mês` : 'Sem vendas no mês ainda.'),
+    !ctx.unidade.sincronizar && el('p', { class: 'aviso' },
+      'A busca automática na Saipos ainda não está ligada para esta unidade (falta o token).'),
     el('div', { class: 'channel-bar' }, canais.map((c) => el('div', { style: `width:${fat ? (c.faturamento / fat) * 100 : 0}%; background:${c.cor}` }))),
     el('div', { class: 'channel-list' }, canais.map((c) => el('div', { class: 'channel-row' },
       el('span', { class: 'channel-name' }, el('span', { class: 'dot', style: `background:${c.cor}` }), c.rotulo),
@@ -82,8 +88,8 @@ export async function telaPainel(conteudo, ctx) {
 
   const t = p.ticket;
   const metaTicket = (k) => (p.metas?.[k]?.meta ? ` · meta ${reais(p.metas[k].meta, 0)}` : '');
-  const secTicket = el('section', {},
-    cabecalho('Ticket médio (acumulado mensal)', 'sem fiado'),
+  const secTicket = el('section', { class: 'sec-ticket' },
+    cabecalho('Ticket médio (acumulado mensal)', 'sem fiado', 'etiqueta'),
     el('div', { class: 'grid-2' },
       el('div', {}, el('p', { class: 'stat-sub' }, 'Balcão / retirada'), el('p', { class: 'stat-value' }, t.balcao?.valor ? reais(t.balcao.valor) : '—'),
         el('p', { class: 'stat-sub' }, `${inteiro(t.balcao?.pedidos)} pedidos${metaTicket('ticket_balcao')}`)),
@@ -95,8 +101,8 @@ export async function telaPainel(conteudo, ctx) {
     const [a, m, d] = inicio.split('-').map(Number);
     return d === 1 ? `15/${String(m).padStart(2, '0')}` : `${new Date(a, m, 0).getDate()}/${String(m).padStart(2, '0')}`;
   };
-  const secCmv = el('section', {},
-    cabecalho('CMV quinzenal'),
+  const secCmv = el('section', { class: 'sec-cmv' },
+    cabecalho('CMV quinzenal', null, 'porcento'),
     cmv
       ? el('div', {},
         el('p', { class: 'cmv-note' }, `Referente a ${dataBR(cmv.inicio).slice(0, 5)} até ${fimQuinzena(cmv.inicio)}`),
@@ -109,20 +115,20 @@ export async function telaPainel(conteudo, ctx) {
   );
 
   const c = p.combos;
-  conteudo.append(
+  conteudo.append(el('div', { class: 'painel-grid' },
     secFaturamento,
     secTicket,
     secCmv,
-    el('section', {}, cabecalho('Produtos mais vendidos', 'mês vigente'),
+    el('section', { class: 'sec-produtos' }, cabecalho('Produtos mais vendidos', rotuloMes(mes), 'chama'),
       el('p', { class: 'section-desc' }, 'Por faturamento, sem os lanches DIA dos funcionários'),
       ranking(p.produtos, { valor: (l) => Number(l.receita), sub: (l) => reais(l.receita, 0) })),
-    el('section', {}, cabecalho('Burgers mais vendidos', 'mês vigente'),
+    el('section', { class: 'sec-burgers' }, cabecalho('Burgers mais vendidos', rotuloMes(mes), 'chama'),
       el('p', { class: 'section-desc' }, 'Combos + compras avulsas somados, por sabor'),
       ranking(p.burgers, { valor: (l) => Number(l.qtd) })),
-    el('section', {}, cabecalho('Composição dos combos', 'mês vigente'),
+    el('section', { class: 'sec-combos' }, cabecalho('Composição dos combos', rotuloMes(mes), 'burger'),
       el('p', { class: 'section-desc' }, `${inteiro(c.total)} combos no mês`),
       blocoCombo('Hambúrguer mais escolhido', c.burger, c.burgers_total),
       blocoCombo('Bebida mais escolhida', c.bebida, c.bebidas_total),
       blocoCombo('Adicional mais pedido', c.adicional, c.adicionais_total)),
-  );
+  ));
 }

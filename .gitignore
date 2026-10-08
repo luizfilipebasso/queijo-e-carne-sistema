@@ -8,6 +8,9 @@ amostras-saipos/
 prototipo/
 marca/
 CLAUDE.md
+# Referência e prints do DESIGN.md mostram faturamento; o DESIGN.md em si vai para o GitHub
+design/referencia/
+design/prints/
 
 # Configuração local do Claude Code
 .claude/

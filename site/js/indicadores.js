@@ -2,7 +2,8 @@
 // As metas e os prêmios vêm do banco (tabela metas, por unidade); veja CLAUDE.md.
 import { supabase } from './supabase.js';
 import { el } from './util.js';
-import { hojeBrasil, dataBR } from './lancamentos.js';
+import { dataBR } from './lancamentos.js';
+import { rotuloMes } from './meses.js';
 import { pct, reais, cabecalho } from './painel.js';
 
 const ROTULO_STATUS = { super: 'Super meta', meta: 'Na meta', fora: 'Fora da meta' };
@@ -76,8 +77,9 @@ function textoMeta(m, formatar, prefixo = 'até') {
   return `Meta ${p}${formatar(m.meta)} (${reais(m.premio_meta, 0)}). Super meta ${p}${formatar(m.super_meta)} (${reais(m.premio_super, 0)}).`;
 }
 
-function card({ titulo, sub, publico, tom, premioValor, corpo }) {
-  return el('div', { class: `ind-card${tom ? ' tone-' + tom : ''}${premioValor > 0 ? ' reached' : ''}${tom === 'super' ? ' reached-super' : ''}` },
+// "atingido": cartão com fundo de meta batida. Nos cartões com dois itens, só quando os dois batem (como no protótipo).
+function card({ titulo, sub, publico, tom, premioValor, atingido = premioValor > 0, corpo }) {
+  return el('div', { class: `ind-card${tom ? ' tone-' + tom : ''}${atingido ? ' reached' : ''}${tom === 'super' ? ' reached-super' : ''}` },
     el('div', { class: 'ind-head' },
       el('div', {}, el('p', { class: 'ind-title' }, titulo), el('p', { class: 'ind-sub' }, sub), el('span', { class: 'ind-aud' }, publico)),
       recompensa(premioValor)),
@@ -98,7 +100,7 @@ function cardTempo(titulo, item, extra) {
   const m = item.meta;
   const diferenca = item.valor !== null && m ? Math.round(item.valor - m.meta) : null;
   return card({
-    titulo, sub: 'só entregas, mês vigente, sem fiado', publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
+    titulo, sub: `só entregas, ${rotuloMes(d.mes)}, sem fiado`, publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, 'Tempo médio'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, item.valor !== null ? mmss(item.valor) : '—'), selo(item.status, 'Sem dados')),
@@ -114,14 +116,14 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   const r = calcular(d);
   const previa = !d.mes_fechado;
 
-  const resumo = el('section', {},
-    cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda'),
+  // Resumo de prêmios por setor: cartão em toda a largura no topo da grade.
+  const resumo = el('div', { class: 'ind-card ind-resumo' },
     el('div', { class: 'grid-2' },
       el('div', {}, el('p', { class: 'stat-sub' }, 'Prêmios — Cozinha'), el('p', { class: 'stat-value' }, reais(r.premioSetor('cozinha', previa), 0)),
         el('p', { class: 'stat-sub' }, 'por pessoa, antes do desconto dos erros')),
       el('div', {}, el('p', { class: 'stat-sub' }, 'Prêmios — Atendimento'), el('p', { class: 'stat-value' }, reais(r.premioSetor('atendimento', previa), 0)),
         el('p', { class: 'stat-sub' }, 'por pessoa, antes do desconto dos erros'))),
-    previa && el('p', { class: 'aviso', style: 'margin-top:14px' },
+    previa && el('p', { class: 'aviso ind-previa' },
       'Prévia: o mês ainda não fechou. O CMV entra no cálculo quando as duas quinzenas estiverem lançadas e o mês terminar.'),
   );
 
@@ -144,6 +146,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   const cardNotas = card({
     titulo: 'Notas das plataformas', sub: 'média das quinzenas do mês', publico: PUBLICO[r.ifood.meta?.publico] ?? '—',
     tom: [r.ifood.status, r.f99.status].includes('fora') ? 'fora' : null, premioValor: r.ifood.premio + r.f99.premio,
+    atingido: r.ifood.premio > 0 && r.f99.premio > 0,
     corpo: el('div', {},
       el('p', { class: 'ind-meta' }, textoMeta(r.ifood.meta, nota) + ' Para cada plataforma.'),
       el('div', { class: 'ind-detail ind-detail-plain' },
@@ -154,6 +157,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   const cardNutri = card({
     titulo: 'Relatórios da Nutricionista', sub: '2 visitas por mês, cada uma com sua meta', publico: PUBLICO[r.nutri1.meta?.publico] ?? '—',
     tom: [r.nutri1.status, r.nutri2.status].includes('fora') ? 'fora' : null, premioValor: r.nutri1.premio + r.nutri2.premio,
+    atingido: r.nutri1.premio > 0 && r.nutri2.premio > 0,
     corpo: el('div', {},
       el('p', { class: 'ind-meta' }, textoMeta(r.nutri1.meta, pct0) + ' Em cada visita.'),
       el('div', { class: 'ind-detail ind-detail-plain' },
@@ -163,7 +167,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
 
   const e = r.erros;
   const cardErros = card({
-    titulo: 'Erros', sub: 'acumulado do mês vigente', publico: PUBLICO[e.meta?.publico] ?? '—', tom: e.status, premioValor: e.premio,
+    titulo: 'Erros', sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`, publico: PUBLICO[e.meta?.publico] ?? '—', tom: e.status, premioValor: e.premio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, 'Percentual de erros'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, e.valor !== null ? pct(e.valor, 2) : '—'), selo(e.status, 'Sem lançamento')),
@@ -177,9 +181,11 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   });
 
   const limiteMin = Math.round((d.cozinha_limite_seg ?? 2400) / 60);
-  conteudo.append(
-    resumo,
-    el('section', {}, el('div', { class: 'ind-grid' },
+  // A seção em si não é um cartão (DESIGN.md); cada indicador é.
+  conteudo.append(el('section', { class: 'sec-kpis' },
+    cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
+    el('div', { class: 'ind-grid' },
+      resumo,
       cardTempo('Aguardando entregador', r.aguardando),
       cardTempo('Cozinha (entrega)', r.cozinha,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : 'entregas do mês'),
@@ -188,7 +194,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
 }
 
 export async function telaIndicadores(conteudo, ctx) {
-  const mes = hojeBrasil().slice(0, 8) + '01';
+  const mes = ctx.mes;
   const { data, error } = await supabase.rpc('indicadores_mes', { p_unidade: ctx.unidade.codigo, p_mes: mes });
   if (error) {
     conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar os Indicadores: ' + error.message)));

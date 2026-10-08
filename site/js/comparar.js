@@ -1,11 +1,13 @@
 // Tela Comparar (quem gerencia mais de uma unidade): unidades lado a lado e o total delas.
 import { supabase } from './supabase.js';
 import { el } from './util.js';
-import { hojeBrasil, dataBR } from './lancamentos.js';
+import { dataBR } from './lancamentos.js';
 import { reais, pct, cabecalho } from './painel.js';
 import { avaliar, mmss } from './indicadores.js';
 
 const ROTULO_STATUS = { super: 'super meta', meta: 'na meta', fora: 'fora da meta' };
+// Cor de cada unidade na barra de faturamento (tokens do DESIGN.md).
+const CORES_UNIDADE = ['var(--accent)', 'var(--canal-alloy)'];
 
 // Cada linha: rótulo, como ler o valor, como mostrar e qual meta (se houver) avalia.
 const LINHAS = [
@@ -33,8 +35,8 @@ function celula(valor, formatar, status) {
     status && el('small', {}, ROTULO_STATUS[status]));
 }
 
-export async function telaComparar(conteudo) {
-  const mes = hojeBrasil().slice(0, 8) + '01';
+export async function telaComparar(conteudo, ctx) {
+  const mes = ctx.mes;
   const { data, error } = await supabase.rpc('comparativo_mes', { p_mes: mes });
   if (error) {
     conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar o comparativo: ' + error.message)));
@@ -44,7 +46,7 @@ export async function telaComparar(conteudo) {
   const total = Number(data.total.faturamento) || 0;
 
   const barra = el('div', { class: 'channel-bar' }, unidades.map((u, i) =>
-    el('div', { style: `width:${total ? (u.faturamento / total) * 100 : 0}%; background:${i === 0 ? '#F8A30D' : '#29B6F6'}` })));
+    el('div', { style: `width:${total ? (u.faturamento / total) * 100 : 0}%; background:${CORES_UNIDADE[i % CORES_UNIDADE.length]}` })));
 
   const tabela = el('table', { class: 'cmp-tabela' },
     el('thead', {}, el('tr', {},
@@ -62,9 +64,9 @@ export async function telaComparar(conteudo) {
 
   conteudo.append(
     el('section', {},
-      cabecalho('Comparativo do mês', 'unidades lado a lado'),
-      el('div', { class: 'grid-2' }, unidades.map((u) => el('div', {},
-        el('p', { class: 'stat-sub' }, u.nome),
+      cabecalho('Comparativo do mês', 'unidades lado a lado', 'alvo'),
+      el('div', { class: 'grid-2' }, unidades.map((u, i) => el('div', {},
+        el('p', { class: 'stat-sub cmp-unidade' }, el('span', { class: 'dot', style: `background:${CORES_UNIDADE[i % CORES_UNIDADE.length]}` }), u.nome),
         el('p', { class: 'stat-value' }, reais(u.faturamento, 0)),
         el('p', { class: 'stat-sub' }, total ? `${pct((u.faturamento / total) * 100)} do total` : '—')))),
       barra,
@@ -72,7 +74,7 @@ export async function telaComparar(conteudo) {
     ),
     el('section', {},
       el('div', { class: 'cmp-rolagem' }, tabela),
-      el('p', { class: 'section-desc', style: 'margin-top:12px' },
+      el('p', { class: 'section-desc cmp-nota' },
         'Tempos: só entregas, sem fiado (cozinha sem os pedidos acima do limite da unidade). O total junta os pedidos das unidades; o CMV não é somado.'),
     ),
   );

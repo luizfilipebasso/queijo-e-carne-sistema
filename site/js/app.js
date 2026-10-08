@@ -1,25 +1,30 @@
 import { supabase } from './supabase.js';
 import { el, limpar, ROTULO_PAPEL, ROTULO_SETOR, primeiroNome, avisar } from './util.js';
 import { telaPessoas } from './pessoas.js';
-import { telaLancamentos, hojeBrasil } from './lancamentos.js';
+import { telaLancamentos } from './lancamentos.js';
 import { telaPainel } from './painel.js';
 import { telaIndicadores } from './indicadores.js';
 import { telaComparar } from './comparar.js';
+import { mesAtual, mesesDisponiveis, nomeMes } from './meses.js';
 
 const raiz = document.getElementById('app');
 const RODAPE = 'Queijo e Carne Burger LTDA — CNPJ 37.208.946/0001-58';
 const CHAVE_UNIDADE = 'qc_unidade';
+const CHAVE_MES = 'qc_mes';
 
 // Abas que ainda serão construídas, com a etapa do plano em que chegam.
 const EM_CONSTRUCAO = {
-  historico: ['Histórico', 'Resumo de cada mês e incentivo pago a cada funcionário. Chega na etapa 4.'],
   incentivo: ['Meu incentivo', 'Quanto você vai receber no mês e o detalhamento. Chega na etapa 5.'],
 };
 
-function mesVigente() {
-  const [ano, mes] = hojeBrasil().split('-').map(Number);
-  const nome = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
-  return `${nome[0].toUpperCase()}${nome.slice(1)} de ${ano}`;
+// Mês escolhido no topo: vale enquanto a aba do navegador estiver aberta; ao abrir de novo, volta ao mês atual.
+function lerMesSalvo() {
+  let salvo = null;
+  try { salvo = sessionStorage.getItem(CHAVE_MES); } catch { /* sem armazenamento */ }
+  return mesesDisponiveis().includes(salvo) ? salvo : mesAtual();
+}
+function salvarMes(iso) {
+  try { sessionStorage.setItem(CHAVE_MES, iso); } catch { /* sem armazenamento: só não lembra */ }
 }
 
 function logo(tamanho) {
@@ -139,7 +144,7 @@ function telaEmConstrucao(conteudo, id, ctx) {
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
   if (ctx.papel === 'funcionario') return [['incentivo', 'Meu incentivo'], ['indicadores', 'Indicadores']];
-  const abas = [['painel', 'Painel'], ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos'], ...comparar, ['historico', 'Histórico']];
+  const abas = [['painel', 'Painel'], ...comparar, ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
 }
@@ -172,15 +177,28 @@ function montarSistema(ctx) {
     }, ctx.unidades.map((u) => el('option', { value: u.codigo, selected: u.codigo === ctx.unidade.codigo }, u.nome)))
     : el('span', { class: 'unidade-fixa' }, ctx.unidade.nome);
 
+  // Mês consultado: do início do projeto até o mês atual. Painel, Comparar e Indicadores seguem esta escolha.
+  const rotuloMes = el('small', { id: 'rotulo-mes' }, ctx.mes === mesAtual() ? 'Mês vigente' : 'Mês consultado');
+  const seletorMes = el('select', {
+    class: 'mes-select', 'aria-labelledby': 'rotulo-mes',
+    onchange: (e) => {
+      ctx.mes = e.target.value;
+      salvarMes(ctx.mes);
+      rotuloMes.textContent = ctx.mes === mesAtual() ? 'Mês vigente' : 'Mês consultado';
+      mostrar();
+    },
+  }, mesesDisponiveis().map((m) => el('option', { value: m, selected: m === ctx.mes }, nomeMes(m))));
+
   limpar(raiz).append(
     el('header', { class: 'brandbar' },
-      logo(38),
+      logo(36),
       el('div', { class: 'bn' }, 'Queijo e Carne', el('small', {}, `${primeiroNome(ctx.eu.nome)} · ${papel}`)),
-      el('div', { class: 'month-badge' },
-        el('small', {}, 'Mês vigente'), el('strong', {}, mesVigente()), seletor),
-      el('button', { class: 'btn-sec btn-sair', onclick: sair }, 'Sair'),
+      el('nav', { class: 'tabs', 'aria-label': 'Abas' }, botoes),
+      el('div', { class: 'barra-direita' },
+        seletor,
+        el('div', { class: 'month-badge' }, rotuloMes, seletorMes),
+        el('button', { class: 'btn-sair', onclick: sair }, 'Sair')),
     ),
-    el('nav', { class: 'tabs' }, botoes),
     conteudo,
     el('footer', {}, RODAPE),
   );
@@ -217,6 +235,7 @@ async function iniciar() {
     unidade,
     vinculo,
     papel: eu.eh_dono ? 'dono' : vinculo.papel,
+    mes: lerMesSalvo(),
     unidadesEquipe: unidades.filter((u) => eu.eh_dono || vinculos.some((v) => v.unidade === u.codigo && v.papel === 'gerente')),
   };
 
