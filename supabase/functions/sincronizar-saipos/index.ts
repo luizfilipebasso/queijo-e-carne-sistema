@@ -177,8 +177,7 @@ Deno.serve(async (req) => {
     .select('codigo, id_store_saipos, segredo_token').eq('codigo', String(corpo.unidade ?? '')).maybeSingle();
   if (!unidade) return new Response('Unidade desconhecida', { status: 400 });
 
-  // SAIPOS_TOKEN (sem sufixo) é o nome antigo do token de SM; aceito só até o dono criar SAIPOS_TOKEN_SM.
-  const bruto = Deno.env.get(unidade.segredo_token) ?? (unidade.codigo === 'SM' ? Deno.env.get('SAIPOS_TOKEN') : undefined);
+  const bruto = Deno.env.get(unidade.segredo_token);
   const token = bruto?.replace(/^Bearer\s+/i, '').trim();
   if (!token) return new Response(`Segredo ${unidade.segredo_token} não cadastrado`, { status: 500 });
 
