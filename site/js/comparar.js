@@ -18,7 +18,8 @@ const LINHAS = [
   ['Tempo de cozinha', (x) => x.seg_cozinha, mmss, 'cozinha'],
   ['Aguardando entregador', (x) => x.seg_aguardando, mmss, 'aguardando'],
   ['CMV (média do mês)', (x) => x.cmv, (v) => pct(v), 'cmv'],
-  ['Erros', (x) => x.erros_pct, (v) => pct(v, 2), 'erros'],
+  ['Erros cozinha', (x) => x.erros_cozinha_pct, (v) => pct(v, 2), 'erros_cozinha'],
+  ['Erros atendimento', (x) => x.erros_atendimento_pct, (v) => pct(v, 2), 'erros_atendimento'],
 ];
 
 // Ticket só tem meta (sem super meta): basta bater a meta.
