@@ -19,9 +19,8 @@ const LINHAS = [
   ['Tempo de cozinha', (x) => x.seg_cozinha, mmss, 'cozinha'],
   ['Aguardando entregador', (x) => x.seg_aguardando, mmss, 'aguardando'],
   ['CMV (média do mês)', (x) => x.cmv, (v) => pct(v), 'cmv'],
-  ['Erros', (x) => x.erros_pct, (v) => pct(v, 2), 'erros'],
-  ['Erros cozinha', (x) => x.erros_cozinha_pct, (v) => pct(v, 2), 'erros_cozinha'],
-  ['Erros atendimento', (x) => x.erros_atendimento_pct, (v) => pct(v, 2), 'erros_atendimento'],
+  // Erros: total de cada unidade (em SM, Cozinha + Atendimento somados; dono, 08/10/2026). Aparece mesmo sem meta "erros".
+  ['Erros', (x) => x.erros_pct, (v) => pct(v, 2), 'erros', true],
 ];
 
 // Ticket só tem meta (sem super meta): basta bater a meta.
@@ -56,10 +55,10 @@ export async function telaComparar(conteudo, ctx) {
       el('th', {}, ''),
       unidades.map((u) => el('th', {}, u.nome, el('small', {}, u.atualizado_ate ? `até ${dataBR(u.atualizado_ate).slice(0, 5)}` : 'sem dados'))),
       el('th', { class: 'cmp-total' }, 'Total'))),
-    el('tbody', {}, LINHAS.map(([rotulo, ler, formatar, chaveMeta]) => el('tr', {},
+    el('tbody', {}, LINHAS.map(([rotulo, ler, formatar, chaveMeta, sempre]) => el('tr', {},
       el('th', { scope: 'row' }, rotulo),
       // Indicador que a unidade não usa (sem meta valendo, ex.: aguardando em SP) fica em branco.
-      unidades.map((u) => (chaveMeta && !u.metas?.[chaveMeta]
+      unidades.map((u) => (chaveMeta && !sempre && !u.metas?.[chaveMeta]
         ? el('td', {}, '—')
         : celula(ler(u), formatar, chaveMeta ? statusDe(u.metas, chaveMeta, ler(u)) : null))),
       // CMV não se soma entre unidades: no total fica em branco.
