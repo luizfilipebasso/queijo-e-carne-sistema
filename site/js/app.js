@@ -6,6 +6,7 @@ import { telaPainel } from './painel.js';
 import { telaIndicadores } from './indicadores.js';
 import { telaComparar } from './comparar.js';
 import { telaEtiquetas } from './etiquetas.js';
+import { telaLinks } from './links.js';
 import { mesAtual, mesesDisponiveis, nomeMes } from './meses.js';
 
 const raiz = document.getElementById('app');
@@ -126,8 +127,8 @@ function telaEscolherSetor(ctx) {
 // Abas conforme o papel na unidade selecionada.
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
-  // Funcionário: Indicadores (com os prêmios no topo) e Etiquetas (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
-  if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas']];
+  // Funcionário: Desempenho (com os prêmios no topo), Etiquetas e Links importantes (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
+  if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
   const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
@@ -155,6 +156,7 @@ function montarSistema(ctx) {
     else if (id === 'indicadores') telaIndicadores(conteudo, ctx);
     else if (id === 'comparar') telaComparar(conteudo, ctx);
     else if (id === 'etiquetas') telaEtiquetas(conteudo, ctx);
+    else if (id === 'links') telaLinks(conteudo, ctx);
   };
   window.onhashchange = mostrar;
 
