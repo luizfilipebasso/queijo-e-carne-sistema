@@ -42,7 +42,10 @@ function recompensa(valor) {
 export function calcular(d) {
   const metas = d.metas ?? {};
   const r = {};
-  r.aguardando = { valor: num(d.aguardando?.segundos), pedidos: d.aguardando?.pedidos ?? 0 };
+  r.aguardando = {
+    valor: num(d.aguardando?.segundos), pedidos: d.aguardando?.pedidos ?? 0,
+    excluidos: d.aguardando?.excluidos ?? 0, limiteSeg: d.aguardando?.limite_seg ?? null,
+  };
   r.cozinha = { valor: num(d.cozinha?.segundos), pedidos: d.cozinha?.pedidos ?? 0, excluidos: d.cozinha?.excluidos ?? 0 };
   r.cmv = { valor: media(d.cmv.map((q) => num(q.cmv_pct)).filter((v) => v !== null)), quinzenas: d.cmv };
   r.ifood = { valor: media(d.notas.map((n) => num(n.nota_ifood)).filter((v) => v !== null)) };
@@ -217,7 +220,8 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
     cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
     el('div', { class: 'ind-grid' },
       resumo,
-      cardTempo('Aguardando entregador', r.aguardando, d.mes),
+      cardTempo('Aguardando entregador', r.aguardando, d.mes,
+        r.aguardando.excluidos ? `${r.aguardando.excluidos} pedido(s) acima de ${Math.round(r.aguardando.limiteSeg / 60)} min fora da média` : 'entregas do mês'),
       cardTempo('Cozinha (entrega)', r.cozinha, d.mes,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : 'entregas do mês'),
       cardErros('atendimento'), cardErros('cozinha'),
