@@ -48,13 +48,15 @@ function entradaNumero(atributos) {
 
 // Monta um formulário genérico ligado a uma tabela.
 // "extras" devolve colunas que não são números digitados (ex.: a data da visita).
-function formulario({ titulo, descricao, tabela, conflito, chaveDe, extras, seletor, campos, validar, recentes }) {
+function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, extras, seletor, campos, validar, recentes }) {
   const situacao = el('p', { class: 'form-situacao' });
   const listaRecentes = el('div', { class: 'recentes' });
   const botaoApagar = el('button', { class: 'btn-sec btn-perigo', type: 'button', hidden: true }, 'Apagar este lançamento');
+  // Todo lançamento pertence a uma unidade: ela faz parte da identificação.
+  const chaveUnidade = () => { const c = chaveDe(); return c ? { unidade, ...c } : null; };
 
   async function carregar() {
-    const chave = chaveDe();
+    const chave = chaveUnidade();
     for (const c of campos) c.entrada.value = '';
     botaoApagar.hidden = true;
     situacao.textContent = '';
@@ -70,7 +72,8 @@ function formulario({ titulo, descricao, tabela, conflito, chaveDe, extras, sele
   }
 
   async function carregarRecentes() {
-    const { data } = await supabase.from(tabela).select('*').order(recentes.ordem, { ascending: false }).limit(5);
+    const { data } = await supabase.from(tabela).select('*').eq('unidade', unidade)
+      .order(recentes.ordem, { ascending: false }).limit(5);
     listaRecentes.replaceChildren(
       ...(data?.length
         ? [el('p', { class: 'recentes-titulo' }, 'Últimos lançamentos'),
@@ -85,7 +88,7 @@ function formulario({ titulo, descricao, tabela, conflito, chaveDe, extras, sele
   botaoApagar.addEventListener('click', async () => {
     if (!confirm('Apagar este lançamento? Não dá para desfazer.')) return;
     let consulta = supabase.from(tabela).delete();
-    for (const [k, v] of Object.entries(chaveDe())) consulta = consulta.eq(k, v);
+    for (const [k, v] of Object.entries(chaveUnidade())) consulta = consulta.eq(k, v);
     const { error } = await consulta;
     if (error) return avisar('Não foi possível apagar: ' + error.message, 'erro');
     avisar('Lançamento apagado.');
@@ -95,7 +98,7 @@ function formulario({ titulo, descricao, tabela, conflito, chaveDe, extras, sele
   const form = el('form', {
     onsubmit: async (e) => {
       e.preventDefault();
-      const chave = chaveDe();
+      const chave = chaveUnidade();
       if (!chave) return avisar('Escolha a data.', 'erro');
       const valores = {};
       for (const c of campos) {
@@ -127,7 +130,8 @@ function formulario({ titulo, descricao, tabela, conflito, chaveDe, extras, sele
   return { secao, carregar, carregarRecentes };
 }
 
-export function telaLancamentos(conteudo) {
+export function telaLancamentos(conteudo, ctx) {
+  const unidade = ctx.unidade.codigo;
   const brl = (n) => 'R$ ' + Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const quinzenas = quinzenasRecentes();
   const rotuloQuinzena = (inicio) => quinzenas.find((q) => q.inicio === inicio)?.rotulo
@@ -140,7 +144,7 @@ export function telaLancamentos(conteudo) {
   const erros = formulario({
     titulo: 'Erros do dia',
     descricao: 'Lance todo dia. Os erros somam no mês; o percentual usa o total de pedidos da Saipos e o custo é descontado do incentivo do setor.',
-    tabela: 'erros_diarios', conflito: 'data',
+    unidade, tabela: 'erros_diarios', conflito: 'unidade,data',
     chaveDe: () => (dataErros.value ? { data: dataErros.value } : null),
     seletor: [campo('Dia', dataErros)],
     campos: [
@@ -164,7 +168,7 @@ export function telaLancamentos(conteudo) {
   const notas = formulario({
     titulo: 'Notas das plataformas',
     descricao: 'Uma vez por quinzena. A média das duas quinzenas é a nota do mês.',
-    tabela: 'notas_quinzena', conflito: 'inicio',
+    unidade, tabela: 'notas_quinzena', conflito: 'unidade,inicio',
     chaveDe: () => ({ inicio: quinzenaNotas.value }),
     seletor: [campo('Quinzena', quinzenaNotas)],
     campos: [
@@ -186,7 +190,7 @@ export function telaLancamentos(conteudo) {
   const cmv = formulario({
     titulo: 'CMV da quinzena',
     descricao: 'Uma vez por quinzena. O CMV do mês é a média das duas quinzenas e só vale com o mês fechado.',
-    tabela: 'cmv_quinzena', conflito: 'inicio',
+    unidade, tabela: 'cmv_quinzena', conflito: 'unidade,inicio',
     chaveDe: () => ({ inicio: quinzenaCmv.value }),
     seletor: [campo('Quinzena', quinzenaCmv)],
     campos: [
@@ -212,7 +216,7 @@ export function telaLancamentos(conteudo) {
   const nutri = formulario({
     titulo: 'Relatório da Nutricionista',
     descricao: 'Duas visitas por mês, cada uma com sua meta.',
-    tabela: 'nutri_visitas', conflito: 'mes,visita',
+    unidade, tabela: 'nutri_visitas', conflito: 'unidade,mes,visita',
     chaveDe: () => (dataVisita.value ? { mes: dataVisita.value.slice(0, 8) + '01', visita: Number(numeroVisita.value) } : null),
     extras: () => ({ data_visita: dataVisita.value }),
     seletor: [el('div', { class: 'form-row-pair' }, campo('Qual visita', numeroVisita), campo('Data da visita', dataVisita))],
@@ -230,6 +234,8 @@ export function telaLancamentos(conteudo) {
   numeroVisita.addEventListener('change', nutri.carregar);
   dataVisita.addEventListener('change', nutri.carregar);
 
-  conteudo.append(el('div', { class: 'lanc-grid' }, erros.secao, notas.secao, cmv.secao, nutri.secao));
+  conteudo.append(
+    el('p', { class: 'aviso lanc-unidade' }, `Lançando na unidade ${ctx.unidade.nome}.`),
+    el('div', { class: 'lanc-grid' }, erros.secao, notas.secao, cmv.secao, nutri.secao));
   for (const f of [erros, notas, cmv, nutri]) { f.carregar(); f.carregarRecentes(); }
 }

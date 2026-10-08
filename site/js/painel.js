@@ -50,11 +50,12 @@ function blocoCombo(titulo, linhas, total) {
       : el('p', { class: 'section-desc' }, 'Sem dados ainda.'));
 }
 
-export async function telaPainel(conteudo) {
+export async function telaPainel(conteudo, ctx) {
   const mes = hojeBrasil().slice(0, 8) + '01';
+  const u = ctx.unidade.codigo;
   const [{ data: p, error }, { data: cmv }] = await Promise.all([
-    supabase.rpc('painel_mes', { p_mes: mes }),
-    supabase.from('cmv_quinzena').select('*').order('inicio', { ascending: false }).limit(1).maybeSingle(),
+    supabase.rpc('painel_mes', { p_unidade: u, p_mes: mes }),
+    supabase.from('cmv_quinzena').select('*').eq('unidade', u).order('inicio', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (error) {
     conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar o Painel: ' + error.message)));
@@ -65,7 +66,9 @@ export async function telaPainel(conteudo) {
   const canais = p.canais.map((c) => ({ ...c, rotulo: CANAIS[c.canal]?.[0] ?? c.canal, cor: CANAIS[c.canal]?.[1] ?? '#7A6754' }));
 
   const secFaturamento = el('section', {},
-    cabecalho('Faturamento acumulado', p.atualizado_ate ? `até ${dataBR(p.atualizado_ate)}` : null),
+    cabecalho(`Faturamento acumulado · ${ctx.unidade.nome}`, p.atualizado_ate ? `até ${dataBR(p.atualizado_ate)}` : 'sem vendas ainda'),
+    !ctx.unidade.sincronizar && el('p', { class: 'aviso', style: 'margin-bottom:14px' },
+      'A busca automática na Saipos ainda não está ligada para esta unidade (falta o token).'),
     el('div', { class: 'hero-wrap' }, el('p', { class: 'hero-value' }, el('sup', {}, 'R$ '), Math.round(fat).toLocaleString('pt-BR'))),
     el('p', { class: 'stat-sub', style: 'margin:14px 0 4px;' },
       p.ultimo_dia?.data ? `Dia ${dataBR(p.ultimo_dia.data)}: ${reais(p.ultimo_dia.faturamento)} · ${inteiro(p.pedidos)} pedidos no mês` : 'Sem vendas no mês ainda.'),
@@ -78,13 +81,14 @@ export async function telaPainel(conteudo) {
   );
 
   const t = p.ticket;
+  const metaTicket = (k) => (p.metas?.[k]?.meta ? ` · meta ${reais(p.metas[k].meta, 0)}` : '');
   const secTicket = el('section', {},
     cabecalho('Ticket médio (acumulado mensal)', 'sem fiado'),
     el('div', { class: 'grid-2' },
       el('div', {}, el('p', { class: 'stat-sub' }, 'Balcão / retirada'), el('p', { class: 'stat-value' }, t.balcao?.valor ? reais(t.balcao.valor) : '—'),
-        el('p', { class: 'stat-sub' }, `${inteiro(t.balcao?.pedidos)} pedidos · meta R$ 70`)),
+        el('p', { class: 'stat-sub' }, `${inteiro(t.balcao?.pedidos)} pedidos${metaTicket('ticket_balcao')}`)),
       el('div', {}, el('p', { class: 'stat-sub' }, 'Delivery'), el('p', { class: 'stat-value' }, t.delivery?.valor ? reais(t.delivery.valor) : '—'),
-        el('p', { class: 'stat-sub' }, `${inteiro(t.delivery?.pedidos)} pedidos · meta R$ 90`))),
+        el('p', { class: 'stat-sub' }, `${inteiro(t.delivery?.pedidos)} pedidos${metaTicket('ticket_delivery')}`))),
   );
 
   const fimQuinzena = (inicio) => {
@@ -101,7 +105,7 @@ export async function telaPainel(conteudo) {
           el('div', { class: 'cmv-stock-row' }, el('span', {}, 'Estoque inicial'), el('strong', {}, reais(cmv.estoque_inicial))),
           el('div', { class: 'cmv-stock-row' }, el('span', {}, 'Estoque final'), el('strong', {}, reais(cmv.estoque_final)))))
       : el('p', { class: 'section-desc' }, 'Nenhuma quinzena lançada ainda.'),
-    el('p', { class: 'cmv-gauge-meta' }, 'Meta: até 34% · super meta: até 32%'),
+    p.metas?.cmv && el('p', { class: 'cmv-gauge-meta' }, `Meta: até ${pct(p.metas.cmv.meta, 0)} · super meta: até ${pct(p.metas.cmv.super_meta, 0)}`),
   );
 
   const c = p.combos;

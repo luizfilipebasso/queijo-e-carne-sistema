@@ -1,7 +1,8 @@
-// Busca um dia comercial na API de Dados da Saipos e grava em saipos_vendas e saipos_itens.
-// Chamada pela fila (private.processar_fila, veja supabase/migrations/20261007000003_fila_saipos.sql)
-// com o corpo {"dia": "AAAA-MM-DD", "parte": "vendas" | "itens"}. Sem "parte", faz as duas.
-// Segredos: SAIPOS_TOKEN (cadastrado no painel do Supabase); SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY vêm prontos.
+// Busca um dia comercial de UMA unidade na API de Dados da Saipos e grava em saipos_vendas e saipos_itens.
+// Chamada pela fila (private.processar_fila, veja supabase/migrations/) com o corpo
+// {"unidade": "SM", "dia": "AAAA-MM-DD", "parte": "vendas" | "itens"}. Sem "parte", faz as duas.
+// Segredos: um token por loja, com o nome indicado em unidades.segredo_token (SAIPOS_TOKEN_SM, SAIPOS_TOKEN_SP).
+// SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY vêm prontos.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const BASE = 'https://data.saipos.io/v1';
@@ -19,6 +20,8 @@ const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPAB
 });
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type Unidade = { codigo: string; id_store_saipos: number | null; segredo_token: string };
 
 // Busca todas as páginas de um endpoint para um dia. A Saipos às vezes devolve 504/429: tenta de novo.
 async function saipos(endpoint: string, dia: string, token: string): Promise<any[]> {
@@ -49,6 +52,19 @@ async function saipos(endpoint: string, dia: string, token: string): Promise<any
   }
 }
 
+// Trava de segurança: só grava se a Saipos devolveu dados da loja desta unidade.
+function conferirLoja(registros: any[], unidade: Unidade, endpoint: string) {
+  const lojas = [...new Set(registros.map((r) => r.id_store))];
+  if (!lojas.length) return;
+  if (unidade.id_store_saipos === null) {
+    throw new Error(`${endpoint}: id_store da unidade ${unidade.codigo} não cadastrado; a Saipos devolveu a loja ${lojas.join(', ')}. Confirme e cadastre em unidades.id_store_saipos.`);
+  }
+  const erradas = lojas.filter((l) => Number(l) !== Number(unidade.id_store_saipos));
+  if (erradas.length) {
+    throw new Error(`${endpoint}: o token de ${unidade.codigo} devolveu dados da loja ${erradas.join(', ')}, mas a unidade é a loja ${unidade.id_store_saipos}. Nada foi gravado.`);
+  }
+}
+
 function somaStatus(historico: any[], status: string): number | null {
   const doStatus = historico.filter((h) => h.desc_store_sale_status === status);
   return doStatus.length ? doStatus.reduce((s, h) => s + (h.duration_time_seconds ?? 0), 0) : null;
@@ -61,9 +77,11 @@ async function gravar(tabela: string, linhas: any[], chave: string) {
   }
 }
 
-async function sincronizarDia(dia: string, parte: string | null, token: string) {
-  const { data: log } = await supabase.from('saipos_sincronizacoes').insert({ dia, parte }).select('id').single();
-  const resultado: { dia: string; parte: string | null; vendas?: number; itens?: number; ok: boolean; erro?: string } = { dia, parte, ok: false };
+async function sincronizarDia(unidade: Unidade, dia: string, parte: string | null, token: string) {
+  const u = unidade.codigo;
+  const { data: log } = await supabase.from('saipos_sincronizacoes').insert({ unidade: u, dia, parte }).select('id').single();
+  const resultado: { unidade: string; dia: string; parte: string | null; vendas?: number; itens?: number; ok: boolean; erro?: string } =
+    { unidade: u, dia, parte, ok: false };
   const erros: string[] = [];
 
   if (parte !== 'itens') try {
@@ -71,12 +89,15 @@ async function sincronizarDia(dia: string, parte: string | null, token: string) 
       saipos('search_sales', dia, token),
       saipos('sales_status_histories', dia, token),
     ]);
+    conferirLoja(vendas, unidade, 'search_sales');
+    conferirLoja(historicos, unidade, 'sales_status_histories');
     const historicoPorVenda = new Map(historicos.map((h) => [h.id_sale, h.histories ?? []]));
 
     await gravar('saipos_vendas', vendas.map((v) => {
       const historico = historicoPorVenda.get(v.id_sale) ?? [];
       const parceiro = v.partner_sale?.desc_partner_sale ?? null;
       return {
+        unidade: u,
         id_sale: v.id_sale,
         data: v.shift_date,
         criado_em: v.created_at,
@@ -91,7 +112,7 @@ async function sincronizarDia(dia: string, parte: string | null, token: string) 
         atualizado_saipos: v.updated_at,
         sincronizado_em: new Date().toISOString(),
       };
-    }), 'id_sale');
+    }), 'unidade,id_sale');
     resultado.vendas = vendas.length;
   } catch (e) {
     erros.push(`vendas: ${(e as Error).message}`);
@@ -100,7 +121,9 @@ async function sincronizarDia(dia: string, parte: string | null, token: string) 
   // Itens em separado: se a Saipos falhar aqui, as vendas e os tempos do dia continuam salvos.
   if (parte !== 'vendas') try {
     const vendasComItens = await saipos('sales_items', dia, token);
+    conferirLoja(vendasComItens, unidade, 'sales_items');
     const linhas = vendasComItens.flatMap((v) => (v.items ?? []).map((i: any) => ({
+      unidade: u,
       id_sale_item: i.id_sale_item,
       id_sale: v.id_sale,
       data: v.shift_date,
@@ -113,7 +136,7 @@ async function sincronizarDia(dia: string, parte: string | null, token: string) 
         .map((c: any) => ({ descricao: (c.desc_sale_item_choice ?? '').trim(), preco: c.aditional_price ?? 0 })),
       sincronizado_em: new Date().toISOString(),
     })));
-    await gravar('saipos_itens', linhas, 'id_sale_item');
+    await gravar('saipos_itens', linhas, 'unidade,id_sale_item');
     resultado.itens = linhas.length;
   } catch (e) {
     erros.push(`itens: ${(e as Error).message}`);
@@ -135,7 +158,7 @@ async function sincronizarDia(dia: string, parte: string | null, token: string) 
       em_andamento_desde: null,
       concluido_em: resultado.ok ? new Date().toISOString() : null,
       ultimo_erro: resultado.erro ?? null,
-    }).eq('dia', dia).eq('parte', parte);
+    }).eq('unidade', u).eq('dia', dia).eq('parte', parte);
   }
   return resultado;
 }
@@ -145,13 +168,19 @@ Deno.serve(async (req) => {
   const { data: autorizado } = await supabase.rpc('sync_chave_valida', { p_chave: chave });
   if (!autorizado) return new Response('Não autorizado', { status: 401 });
 
-  const token = Deno.env.get('SAIPOS_TOKEN')?.replace(/^Bearer\s+/i, '').trim();
-  if (!token) return new Response('Segredo SAIPOS_TOKEN não cadastrado', { status: 500 });
-
   const corpo = await req.json().catch(() => ({}));
   const dia = String(corpo.dia ?? '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return new Response('Informe {"dia": "AAAA-MM-DD"}', { status: 400 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return new Response('Informe {"unidade": "SM", "dia": "AAAA-MM-DD"}', { status: 400 });
   const parte = corpo.parte === 'vendas' || corpo.parte === 'itens' ? corpo.parte : null;
 
-  return Response.json(await sincronizarDia(dia, parte, token));
+  const { data: unidade } = await supabase.from('unidades')
+    .select('codigo, id_store_saipos, segredo_token').eq('codigo', String(corpo.unidade ?? '')).maybeSingle();
+  if (!unidade) return new Response('Unidade desconhecida', { status: 400 });
+
+  // SAIPOS_TOKEN (sem sufixo) é o nome antigo do token de SM; aceito só até o dono criar SAIPOS_TOKEN_SM.
+  const bruto = Deno.env.get(unidade.segredo_token) ?? (unidade.codigo === 'SM' ? Deno.env.get('SAIPOS_TOKEN') : undefined);
+  const token = bruto?.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return new Response(`Segredo ${unidade.segredo_token} não cadastrado`, { status: 500 });
+
+  return Response.json(await sincronizarDia(unidade, dia, parte, token));
 });

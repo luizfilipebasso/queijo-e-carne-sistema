@@ -4,16 +4,11 @@ import { telaPessoas } from './pessoas.js';
 import { telaLancamentos, hojeBrasil } from './lancamentos.js';
 import { telaPainel } from './painel.js';
 import { telaIndicadores } from './indicadores.js';
+import { telaComparar } from './comparar.js';
 
 const raiz = document.getElementById('app');
 const RODAPE = 'Queijo e Carne Burger LTDA — CNPJ 37.208.946/0001-58';
-
-// Abas de cada papel: [id, rótulo, tela]
-const ABAS = {
-  dono: [['painel', 'Painel'], ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos'], ['historico', 'Histórico'], ['pessoas', 'Pessoas']],
-  gerente: [['painel', 'Painel'], ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos'], ['historico', 'Histórico']],
-  funcionario: [['incentivo', 'Meu incentivo'], ['indicadores', 'Indicadores']],
-};
+const CHAVE_UNIDADE = 'qc_unidade';
 
 // Abas que ainda serão construídas, com a etapa do plano em que chegam.
 const EM_CONSTRUCAO = {
@@ -29,6 +24,19 @@ function mesVigente() {
 
 function logo(tamanho) {
   return el('img', { src: 'img/logo.png', alt: 'Queijo e Carne', width: tamanho, height: tamanho, class: 'logo' });
+}
+
+function lerUnidadeSalva() {
+  try { return localStorage.getItem(CHAVE_UNIDADE); } catch { return null; }
+}
+function salvarUnidade(codigo) {
+  try { localStorage.setItem(CHAVE_UNIDADE, codigo); } catch { /* sem armazenamento: só não lembra */ }
+}
+
+async function sair() {
+  await supabase.auth.signOut();
+  location.hash = '';
+  iniciar();
 }
 
 // ---------- Login ----------
@@ -77,19 +85,31 @@ function telaLogin(mensagem) {
   );
 }
 
-// ---------- Primeiro acesso do funcionário ----------
+function telaAviso(titulo, texto) {
+  limpar(raiz).append(
+    el('main', { class: 'login' },
+      logo(64),
+      el('h1', { class: 'login-titulo' }, titulo),
+      el('p', { class: 'login-sub' }, texto),
+      el('button', { class: 'btn-sec', onclick: sair }, 'Sair'),
+    ),
+    el('footer', {}, RODAPE),
+  );
+}
 
-function telaEscolherSetor(eu) {
+// ---------- Primeiro acesso do funcionário numa unidade ----------
+
+function telaEscolherSetor(ctx) {
   const escolher = async (setor) => {
-    const { error } = await supabase.rpc('indicar_meu_setor', { p_setor: setor });
+    const { error } = await supabase.rpc('indicar_meu_setor', { p_unidade: ctx.unidade.codigo, p_setor: setor });
     if (error) return avisar('Não foi possível salvar: ' + error.message, 'erro');
     iniciar();
   };
   limpar(raiz).append(
     el('main', { class: 'login' },
       logo(64),
-      el('h1', { class: 'login-titulo' }, `Bem-vindo, ${primeiroNome(eu.nome)}!`),
-      el('p', { class: 'login-sub' }, 'Em qual setor você trabalha?'),
+      el('h1', { class: 'login-titulo' }, `Bem-vindo, ${primeiroNome(ctx.eu.nome)}!`),
+      el('p', { class: 'login-sub' }, `Em qual setor você trabalha na unidade ${ctx.unidade.nome}?`),
       el('div', { class: 'setor-opcoes' },
         el('button', { class: 'btn-primary', onclick: () => escolher('cozinha') }, 'Cozinha'),
         el('button', { class: 'btn-primary', onclick: () => escolher('atendimento') }, 'Atendimento'),
@@ -102,21 +122,30 @@ function telaEscolherSetor(eu) {
 
 // ---------- Sistema ----------
 
-function telaEmConstrucao(conteudo, id, eu) {
+function telaEmConstrucao(conteudo, id, ctx) {
   const [titulo, texto] = EM_CONSTRUCAO[id];
   const secao = el('section', {},
     el('p', { class: 'section-title' }, titulo),
     el('p', { class: 'section-desc' }, texto),
   );
-  if (id === 'incentivo' && !eu.setor) {
+  if (id === 'incentivo' && ctx.vinculo && !ctx.vinculo.setor) {
     secao.append(el('p', { class: 'aviso' },
-      `Você indicou o setor ${ROTULO_SETOR[eu.setor_indicado] || '—'}. Aguardando o dono confirmar.`));
+      `Você indicou o setor ${ROTULO_SETOR[ctx.vinculo.setor_indicado] || '—'}. Aguardando o dono confirmar.`));
   }
   conteudo.append(secao);
 }
 
-function montarSistema(eu) {
-  const abas = ABAS[eu.papel];
+// Abas conforme o papel na unidade selecionada.
+function abasDe(ctx) {
+  const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
+  if (ctx.papel === 'funcionario') return [['incentivo', 'Meu incentivo'], ['indicadores', 'Indicadores']];
+  const abas = [['painel', 'Painel'], ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos'], ...comparar, ['historico', 'Histórico']];
+  if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
+  return abas;
+}
+
+function montarSistema(ctx) {
+  const abas = abasDe(ctx);
   const conteudo = el('div', { class: 'conteudo' });
   const botoes = abas.map(([id, rotulo]) =>
     el('button', { 'data-aba': id, onclick: () => { location.hash = id; } }, rotulo));
@@ -126,24 +155,30 @@ function montarSistema(eu) {
     const id = abas.some(([a]) => a === pedida) ? pedida : abas[0][0];
     botoes.forEach((b) => b.classList.toggle('active', b.dataset.aba === id));
     limpar(conteudo);
-    if (id === 'pessoas') telaPessoas(conteudo, eu);
-    else if (id === 'lancamentos') telaLancamentos(conteudo);
-    else if (id === 'painel') telaPainel(conteudo);
-    else if (id === 'indicadores') telaIndicadores(conteudo);
-    else telaEmConstrucao(conteudo, id, eu);
+    if (id === 'pessoas') telaPessoas(conteudo, ctx);
+    else if (id === 'lancamentos') telaLancamentos(conteudo, ctx);
+    else if (id === 'painel') telaPainel(conteudo, ctx);
+    else if (id === 'indicadores') telaIndicadores(conteudo, ctx);
+    else if (id === 'comparar') telaComparar(conteudo, ctx);
+    else telaEmConstrucao(conteudo, id, ctx);
   };
   window.onhashchange = mostrar;
 
-  const papel = eu.papel === 'funcionario' && eu.setor ? ROTULO_SETOR[eu.setor] : ROTULO_PAPEL[eu.papel];
+  const papel = ctx.papel === 'funcionario' && ctx.vinculo?.setor ? ROTULO_SETOR[ctx.vinculo.setor] : ROTULO_PAPEL[ctx.papel];
+  const seletor = ctx.unidades.length > 1
+    ? el('select', {
+      class: 'unidade-select', 'aria-label': 'Unidade',
+      onchange: (e) => { salvarUnidade(e.target.value); iniciar(); },
+    }, ctx.unidades.map((u) => el('option', { value: u.codigo, selected: u.codigo === ctx.unidade.codigo }, u.nome)))
+    : el('span', { class: 'unidade-fixa' }, ctx.unidade.nome);
+
   limpar(raiz).append(
     el('header', { class: 'brandbar' },
       logo(38),
-      el('div', { class: 'bn' }, 'Queijo e Carne', el('small', {}, `${primeiroNome(eu.nome)} · ${papel}`)),
-      el('div', { class: 'month-badge' }, el('small', {}, 'Mês vigente'), el('strong', {}, mesVigente())),
-      el('button', {
-        class: 'btn-sec btn-sair',
-        onclick: async () => { await supabase.auth.signOut(); location.hash = ''; iniciar(); },
-      }, 'Sair'),
+      el('div', { class: 'bn' }, 'Queijo e Carne', el('small', {}, `${primeiroNome(ctx.eu.nome)} · ${papel}`)),
+      el('div', { class: 'month-badge' },
+        el('small', {}, 'Mês vigente'), el('strong', {}, mesVigente()), seletor),
+      el('button', { class: 'btn-sec btn-sair', onclick: sair }, 'Sair'),
     ),
     el('nav', { class: 'tabs' }, botoes),
     conteudo,
@@ -164,8 +199,29 @@ async function iniciar() {
     await supabase.auth.signOut();
     return telaLogin('Seu acesso está desativado. Fale com o dono.');
   }
-  if (eu.papel === 'funcionario' && !eu.setor && !eu.setor_indicado) return telaEscolherSetor(eu);
-  montarSistema(eu);
+
+  // As regras do banco já devolvem só as unidades que a pessoa pode ver.
+  const [{ data: unidadesVisiveis }, { data: vinculos }] = await Promise.all([
+    supabase.from('unidades').select('*').order('ordem'),
+    supabase.from('pessoa_unidades').select('*').eq('pessoa_id', eu.id).eq('ativo', true),
+  ]);
+  const unidades = (unidadesVisiveis ?? []).filter((u) => eu.eh_dono || vinculos?.some((v) => v.unidade === u.codigo));
+  if (!unidades.length) return telaAviso('Quase lá!', 'Você ainda não tem unidade liberada. Fale com o dono.');
+
+  const salva = lerUnidadeSalva();
+  const unidade = unidades.find((u) => u.codigo === salva) ?? unidades[0];
+  const vinculo = vinculos?.find((v) => v.unidade === unidade.codigo) ?? null;
+  const ctx = {
+    eu,
+    unidades,
+    unidade,
+    vinculo,
+    papel: eu.eh_dono ? 'dono' : vinculo.papel,
+    unidadesEquipe: unidades.filter((u) => eu.eh_dono || vinculos.some((v) => v.unidade === u.codigo && v.papel === 'gerente')),
+  };
+
+  if (ctx.papel === 'funcionario' && !vinculo.setor && !vinculo.setor_indicado) return telaEscolherSetor(ctx);
+  montarSistema(ctx);
 }
 
 iniciar();

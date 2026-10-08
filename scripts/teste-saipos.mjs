@@ -1,14 +1,19 @@
-// Chamada de teste à API de Dados da Saipos: node scripts/teste-saipos.mjs INICIO [FIM]  (datas AAAA-MM-DD)
-// Lê o token de segredos/saipos.env (fora do GitHub) e nunca o imprime.
-// As respostas completas vão para segredos/amostra-api/ (também fora do GitHub).
+// Chamada de teste à API de Dados da Saipos: node scripts/teste-saipos.mjs UNIDADE INICIO [FIM]
+// (UNIDADE = SM ou SP; datas AAAA-MM-DD). Lê o token SAIPOS_TOKEN_<UNIDADE> de segredos/saipos.env
+// (fora do GitHub) e nunca o imprime. As respostas vão para segredos/amostra-api/ (também fora do GitHub).
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = fileURLToPath(new URL('../', import.meta.url));
 const BASE = 'https://data.saipos.io/v1';
-const inicio = process.argv[2] || '2026-09-01';
-const fim = process.argv[3] || inicio;
-const periodo = inicio === fim ? inicio : `${inicio}_a_${fim}`;
+const unidade = (process.argv[2] || '').toUpperCase();
+if (!/^[A-Z]{2,4}$/.test(unidade)) {
+  console.error('Uso: node scripts/teste-saipos.mjs SM 2026-09-01 [2026-09-18]');
+  process.exit(1);
+}
+const inicio = process.argv[3] || '2026-09-01';
+const fim = process.argv[4] || inicio;
+const periodo = `${unidade}-${inicio === fim ? inicio : `${inicio}_a_${fim}`}`;
 
 // A API aceita no máximo 15 dias por consulta: divide o período em blocos.
 function blocosDe15Dias() {
@@ -34,9 +39,10 @@ async function comRetentativa(fn) {
 
 async function lerToken() {
   const texto = await readFile(RAIZ + 'segredos/saipos.env', 'utf8');
-  const linha = texto.split(/\r?\n/).find((l) => l.startsWith('SAIPOS_TOKEN='));
-  const token = linha?.slice('SAIPOS_TOKEN='.length).trim().replace(/^Bearer\s+/i, '');
-  if (!token || token === 'COLE_O_TOKEN_AQUI') throw new Error('Token não encontrado em segredos/saipos.env');
+  const chave = `SAIPOS_TOKEN_${unidade}=`;
+  const linha = texto.split(/\r?\n/).find((l) => l.startsWith(chave));
+  const token = linha?.slice(chave.length).trim().replace(/^Bearer\s+/i, '');
+  if (!token || token.startsWith('COLE_O_TOKEN')) throw new Error(`Token ${chave.slice(0, -1)} não encontrado em segredos/saipos.env`);
   return token;
 }
 
