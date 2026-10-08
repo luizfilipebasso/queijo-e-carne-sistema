@@ -22,7 +22,7 @@ export function limpar(no) {
 }
 
 export const ROTULO_PAPEL = { dono: 'Dono', gerente: 'Gerente', funcionario: 'Funcionário' };
-export const ROTULO_SETOR = { cozinha: 'Cozinha', atendimento: 'Atendimento' };
+export const ROTULO_SETOR = { cozinha: 'Cozinha', atendimento: 'Atendimento', producao: 'Produção' };
 
 export function primeiroNome(nome) {
   return (nome || '').trim().split(/\s+/)[0];

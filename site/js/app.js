@@ -115,6 +115,7 @@ function telaEscolherSetor(ctx) {
       el('div', { class: 'setor-opcoes' },
         el('button', { class: 'btn-primary', onclick: () => escolher('cozinha') }, 'Cozinha'),
         el('button', { class: 'btn-primary', onclick: () => escolher('atendimento') }, 'Atendimento'),
+        el('button', { class: 'btn-primary', onclick: () => escolher('producao') }, 'Produção'),
       ),
       el('p', { class: 'login-nota' }, 'O dono vai confirmar o seu setor.'),
     ),
@@ -128,6 +129,10 @@ function telaEscolherSetor(ctx) {
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
   // Funcionário: Desempenho (com os prêmios no topo), Etiquetas e Links importantes (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
+  // Produção (dono, 08/10/2026): não recebe incentivo, então não vê Desempenho. Vale também enquanto o setor indicado aguarda confirmação.
+  if (ctx.papel === 'funcionario' && (ctx.vinculo?.setor ?? ctx.vinculo?.setor_indicado) === 'producao') {
+    return [['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
+  }
   if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
   // Etiquetas: liberada também para dono e gerente (dono, 08/10/2026).
   const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos'], ['etiquetas', 'Etiquetas']];

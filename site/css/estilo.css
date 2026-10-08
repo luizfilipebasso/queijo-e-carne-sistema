@@ -424,7 +424,7 @@ button:disabled { opacity: .55; cursor: wait; }
   font-size: 14.5px; font-weight: 600; cursor: pointer;
 }
 .btn-google:hover { background: #f6f6f6; }
-.setor-opcoes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.setor-opcoes { display: grid; grid-template-columns: 1fr; gap: 10px; width: 100%; }
 
 /* ---------- telas largas ---------- */
 @media (min-width: 860px) {
