@@ -356,6 +356,50 @@ button:disabled { opacity: .55; cursor: wait; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
 .check input { accent-color: var(--accent); width: 16px; height: 16px; }
 
+/* ---------- Etiquetas (só funcionários) ---------- */
+.et-subtabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.et-subtabs button {
+  background: var(--card); border: 1px solid var(--line-strong); color: var(--ink-2); border-radius: 999px;
+  font-size: 13.5px; font-weight: 600; padding: 7px 16px; cursor: pointer;
+}
+.et-subtabs button:hover { background: var(--card-2); }
+.et-subtabs button.active { background: var(--accent); border-color: var(--accent); color: #231710; }
+.et-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.et-carregando { color: var(--ink-3); text-align: center; padding: 40px 0; }
+.et-aviso { margin-bottom: 18px; }
+.et-categorias { display: flex; flex-direction: column; gap: 8px; }
+.et-categoria { background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; }
+.et-categoria summary {
+  display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+  padding: 11px 14px; font-size: 14.5px; font-weight: 500; color: var(--ink); list-style: none;
+}
+.et-categoria summary::-webkit-details-marker { display: none; }
+.et-categoria[open] summary { color: var(--accent-ink); border-bottom: 1px solid var(--line); }
+.et-contagem { font-size: 12px; color: var(--ink-3); }
+.et-categoria .et-chips { padding: 12px 14px 14px; }
+.et-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.et-chip {
+  background: var(--card); border: 1px solid var(--line-strong); color: var(--ink); border-radius: 999px;
+  font-size: 13.5px; padding: 7px 13px; cursor: pointer;
+}
+.et-chip:hover { background: var(--card-2); }
+.et-chip.ativo { background: var(--accent); border-color: var(--accent); color: #231710; font-weight: 600; }
+.et-dica { font-size: 13px; color: var(--ink-3); margin: 0; }
+.et-copias { display: flex; align-items: center; gap: 14px; }
+.et-copias .btn-sec { font-size: 18px; padding: 4px 16px; }
+.et-copias-n { font-size: 20px; font-weight: 600; min-width: 24px; text-align: center; }
+.et-previa-caixa { margin-bottom: 16px; }
+/* A etiqueta é papel branco: fica branca nos dois temas. */
+.et-previa { display: block; width: 100%; max-width: 384px; height: auto; background: #fff; border: 1px solid var(--line-strong); border-radius: 8px; }
+.et-impressora-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.et-impressora { font-size: 13px; color: var(--ink-2); margin: 0; }
+.et-situacao { font-size: 13.5px; color: var(--accent-ink); min-height: 18px; margin: 12px 0 0; }
+.et-quando { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+@media (min-width: 860px) {
+  .et-grade { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .et-lado { position: sticky; top: 84px; }
+}
+
 /* ---------- Login e páginas simples ---------- */
 .login {
   flex: none; display: flex; flex-direction: column; align-items: center;

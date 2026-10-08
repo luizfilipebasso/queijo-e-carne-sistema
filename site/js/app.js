@@ -5,6 +5,7 @@ import { telaLancamentos } from './lancamentos.js';
 import { telaPainel } from './painel.js';
 import { telaIndicadores } from './indicadores.js';
 import { telaComparar } from './comparar.js';
+import { telaEtiquetas } from './etiquetas.js';
 import { mesAtual, mesesDisponiveis, nomeMes } from './meses.js';
 
 const raiz = document.getElementById('app');
@@ -143,7 +144,8 @@ function telaEmConstrucao(conteudo, id, ctx) {
 // Abas conforme o papel na unidade selecionada.
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
-  if (ctx.papel === 'funcionario') return [['incentivo', 'Meu incentivo'], ['indicadores', 'Indicadores']];
+  // Etiquetas: só para funcionários (decisão do dono, 08/10/2026).
+  if (ctx.papel === 'funcionario') return [['incentivo', 'Meu incentivo'], ['indicadores', 'Indicadores'], ['etiquetas', 'Etiquetas']];
   const abas = [['painel', 'Painel'], ...comparar, ['indicadores', 'Indicadores'], ['lancamentos', 'Lançamentos']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
@@ -165,6 +167,7 @@ function montarSistema(ctx) {
     else if (id === 'painel') telaPainel(conteudo, ctx);
     else if (id === 'indicadores') telaIndicadores(conteudo, ctx);
     else if (id === 'comparar') telaComparar(conteudo, ctx);
+    else if (id === 'etiquetas') telaEtiquetas(conteudo, ctx);
     else telaEmConstrucao(conteudo, id, ctx);
   };
   window.onhashchange = mostrar;
