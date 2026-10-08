@@ -130,8 +130,12 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
   return { secao, carregar, carregarRecentes };
 }
 
-export function telaLancamentos(conteudo, ctx) {
+export async function telaLancamentos(conteudo, ctx) {
   const unidade = ctx.unidade.codigo;
+  // O 99food só aparece quando a meta dele já vale (dono, 08/10/2026: por enquanto só iFood).
+  const { data: meta99 } = await supabase.from('metas').select('indicador')
+    .eq('unidade', unidade).eq('indicador', 'f99').lte('vale_a_partir_de', hojeBrasil()).limit(1);
+  const com99 = Boolean(meta99?.length);
   const brl = (n) => 'R$ ' + Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const quinzenas = quinzenasRecentes();
   const rotuloQuinzena = (inicio) => quinzenas.find((q) => q.inicio === inicio)?.rotulo
@@ -166,21 +170,21 @@ export function telaLancamentos(conteudo, ctx) {
   // ----- Notas da quinzena -----
   const quinzenaNotas = seletorQuinzena();
   const notas = formulario({
-    titulo: 'Notas das plataformas',
+    titulo: com99 ? 'Notas das plataformas' : 'Nota do iFood',
     descricao: 'Uma vez por quinzena. A média das duas quinzenas é a nota do mês.',
     unidade, tabela: 'notas_quinzena', conflito: 'unidade,inicio',
     chaveDe: () => ({ inicio: quinzenaNotas.value }),
     seletor: [campo('Quinzena', quinzenaNotas)],
     campos: [
       { coluna: 'nota_ifood', rotulo: 'Nota iFood', entrada: entradaNumero({ min: 0, max: 5, step: 0.01, placeholder: '0,00' }) },
-      { coluna: 'nota_99food', rotulo: 'Nota 99food', entrada: entradaNumero({ min: 0, max: 5, step: 0.01, placeholder: '0,00' }) },
+      ...(com99 ? [{ coluna: 'nota_99food', rotulo: 'Nota 99food', entrada: entradaNumero({ min: 0, max: 5, step: 0.01, placeholder: '0,00' }) }] : []),
     ],
-    validar: (v) => (v.nota_ifood === null && v.nota_99food === null ? 'Preencha pelo menos uma nota.' : null),
+    validar: (v) => (v.nota_ifood == null && v.nota_99food == null ? (com99 ? 'Preencha pelo menos uma nota.' : 'Preencha a nota do iFood.') : null),
     recentes: {
       ordem: 'inicio',
       selecionar: (l) => { quinzenaNotas.value = l.inicio; },
       rotulo: (l) => rotuloQuinzena(l.inicio),
-      resumo: (l) => `iFood ${l.nota_ifood ?? '—'} · 99food ${l.nota_99food ?? '—'}`,
+      resumo: (l) => (com99 ? `iFood ${l.nota_ifood ?? '—'} · 99food ${l.nota_99food ?? '—'}` : `iFood ${l.nota_ifood ?? '—'}`),
     },
   });
   quinzenaNotas.addEventListener('change', notas.carregar);

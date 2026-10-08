@@ -143,15 +143,18 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   });
 
   const nota = (v) => fmt(v, 2);
+  // O 99food só aparece quando a meta dele está valendo no mês (dono, 08/10/2026: por enquanto só iFood).
+  const com99 = Boolean(r.f99.meta);
+  const plataformas = com99 ? [r.ifood, r.f99] : [r.ifood];
   const cardNotas = card({
-    titulo: 'Notas das plataformas', sub: 'média das quinzenas do mês', publico: PUBLICO[r.ifood.meta?.publico] ?? '—',
-    tom: [r.ifood.status, r.f99.status].includes('fora') ? 'fora' : null, premioValor: r.ifood.premio + r.f99.premio,
-    atingido: r.ifood.premio > 0 && r.f99.premio > 0,
+    titulo: com99 ? 'Notas das plataformas' : 'Nota do iFood', sub: 'média das quinzenas do mês', publico: PUBLICO[r.ifood.meta?.publico] ?? '—',
+    tom: plataformas.some((p) => p.status === 'fora') ? 'fora' : null, premioValor: plataformas.reduce((s, p) => s + p.premio, 0),
+    atingido: plataformas.every((p) => p.premio > 0),
     corpo: el('div', {},
-      el('p', { class: 'ind-meta' }, textoMeta(r.ifood.meta, nota) + ' Para cada plataforma.'),
+      el('p', { class: 'ind-meta' }, textoMeta(r.ifood.meta, nota) + (com99 ? ' Para cada plataforma.' : '')),
       el('div', { class: 'ind-detail ind-detail-plain' },
         linha('iFood', 'média do mês', r.ifood.valor !== null ? nota(r.ifood.valor) : '—', r.ifood.status, 'Sem lançamento', r.ifood.premio),
-        linha('99food', 'média do mês', r.f99.valor !== null ? nota(r.f99.valor) : '—', r.f99.status, 'Sem lançamento', r.f99.premio))),
+        com99 && linha('99food', 'média do mês', r.f99.valor !== null ? nota(r.f99.valor) : '—', r.f99.status, 'Sem lançamento', r.f99.premio))),
   });
 
   const cardNutri = card({
