@@ -19,6 +19,7 @@ const LINHAS = [
   ['Tempo de cozinha', (x) => x.seg_cozinha, mmss, 'cozinha'],
   ['Aguardando entregador', (x) => x.seg_aguardando, mmss, 'aguardando'],
   ['CMV (média do mês)', (x) => x.cmv, (v) => pct(v), 'cmv'],
+  ['Erros', (x) => x.erros_pct, (v) => pct(v, 2), 'erros'],
   ['Erros cozinha', (x) => x.erros_cozinha_pct, (v) => pct(v, 2), 'erros_cozinha'],
   ['Erros atendimento', (x) => x.erros_atendimento_pct, (v) => pct(v, 2), 'erros_atendimento'],
 ];
@@ -57,7 +58,10 @@ export async function telaComparar(conteudo, ctx) {
       el('th', { class: 'cmp-total' }, 'Total'))),
     el('tbody', {}, LINHAS.map(([rotulo, ler, formatar, chaveMeta]) => el('tr', {},
       el('th', { scope: 'row' }, rotulo),
-      unidades.map((u) => celula(ler(u), formatar, chaveMeta ? statusDe(u.metas, chaveMeta, ler(u)) : null)),
+      // Indicador que a unidade não usa (sem meta valendo, ex.: aguardando em SP) fica em branco.
+      unidades.map((u) => (chaveMeta && !u.metas?.[chaveMeta]
+        ? el('td', {}, '—')
+        : celula(ler(u), formatar, chaveMeta ? statusDe(u.metas, chaveMeta, ler(u)) : null))),
       // CMV não se soma entre unidades: no total fica em branco.
       chaveMeta === 'cmv'
         ? el('td', { class: 'cmp-total' }, '—')
@@ -77,7 +81,7 @@ export async function telaComparar(conteudo, ctx) {
     el('section', {},
       el('div', { class: 'cmp-rolagem' }, tabela),
       el('p', { class: 'section-desc cmp-nota' },
-        'Tempos: só entregas, sem fiado (cozinha sem os pedidos acima do limite da unidade). O total junta os pedidos das unidades; o CMV não é somado.'),
+        'Tempos sem fiado e sem os pedidos acima do limite da unidade. Cozinha: só entregas em Santa Maria; entregas, balcão e salão em São Paulo. — = indicador que a unidade não usa. O total junta os pedidos das unidades; o CMV não é somado.'),
     ),
   );
 }

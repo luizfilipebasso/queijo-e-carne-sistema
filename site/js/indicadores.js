@@ -8,8 +8,9 @@ import { pct, reais, cabecalho } from './painel.js';
 
 const ROTULO_STATUS = { super: 'Super meta', meta: 'Na meta', fora: 'Fora da meta' };
 // Indicadores que dão prêmio. As duas visitas da nutricionista usam a mesma meta ("nutri").
-// Erros: um indicador por setor (dono, 08/10/2026), cada um só para o seu setor.
-const PREMIADOS = ['aguardando', 'cozinha', 'cmv', 'ifood', 'f99', 'nutri1', 'nutri2', 'erros_cozinha', 'erros_atendimento'];
+// Erros: em SM, um indicador por setor (erros_cozinha / erros_atendimento); em SP, um só ("erros", para todos).
+// Cada unidade só usa os indicadores com meta valendo no mês (dono, 08/10/2026).
+const PREMIADOS = ['aguardando', 'cozinha', 'cmv', 'ifood', 'keeta', 'f99', 'nutri1', 'nutri2', 'erros', 'erros_cozinha', 'erros_atendimento'];
 const SETORES = ['cozinha', 'atendimento'];
 const ROTULO_SETOR = { cozinha: 'Cozinha', atendimento: 'Atendimento' };
 const metaDe = (metas, chave) => metas[chave.startsWith('nutri') ? 'nutri' : chave];
@@ -50,6 +51,7 @@ export function calcular(d) {
   r.cmv = { valor: media(d.cmv.map((q) => num(q.cmv_pct)).filter((v) => v !== null)), quinzenas: d.cmv };
   r.ifood = { valor: media(d.notas.map((n) => num(n.nota_ifood)).filter((v) => v !== null)) };
   r.f99 = { valor: media(d.notas.map((n) => num(n.nota_99food)).filter((v) => v !== null)) };
+  r.keeta = { valor: media(d.notas.map((n) => num(n.nota_keeta)).filter((v) => v !== null)) };
   for (const v of [1, 2]) {
     const visita = d.nutri.find((n) => n.visita === v);
     r[`nutri${v}`] = { valor: num(visita?.nota), data: visita?.data };
@@ -64,6 +66,15 @@ export function calcular(d) {
       pessoas: d.funcionarios?.[setor] ?? 0,
     };
   }
+  // Erros num indicador só (SP): soma tudo que foi lançado; o custo se divide entre as pessoas dos dois setores.
+  const qtdTotal = Number(e.qtd_cozinha) + Number(e.qtd_atendimento) + Number(e.qtd_geral ?? 0);
+  r.erros = {
+    valor: e.dias_lancados > 0 && d.pedidos > 0 ? (qtdTotal / d.pedidos) * 100 : null,
+    qtd: qtdTotal, dias: e.dias_lancados, pedidos: d.pedidos,
+    custo: Number(e.custo_cozinha) + Number(e.custo_atendimento) + Number(e.custo_geral ?? 0),
+    pessoas: SETORES.reduce((s, x) => s + (d.funcionarios?.[x] ?? 0), 0),
+  };
+  r.errosUnificado = Boolean(metas.erros);
   for (const chave of PREMIADOS) {
     const item = r[chave];
     item.meta = metaDe(metas, chave);
@@ -77,9 +88,10 @@ export function calcular(d) {
   r.premioSetor = (setor, previa = false) => PREMIADOS
     .filter((k) => ['todos', setor].includes(r[k].meta?.publico))
     .reduce((s, k) => s + (previa ? r[k].premioPrevia : r[k].premio), 0);
-  // Desconto por pessoa: custo dos erros do setor no mês ÷ pessoas do setor na unidade.
+  // Desconto por pessoa: custo dos erros do setor ÷ pessoas do setor (SP: custo total ÷ pessoas dos dois setores).
+  r.errosDe = (setor) => (r.errosUnificado ? r.erros : r[`erros_${setor}`]);
   r.descontoSetor = (setor) => {
-    const x = r[`erros_${setor}`];
+    const x = r.errosDe(setor);
     return x.pessoas > 0 ? x.custo / x.pessoas : 0;
   };
   // Incentivo por pessoa = prêmios − desconto, nunca abaixo de zero.
@@ -112,11 +124,11 @@ function linha(rotulo, detalhe, valor, status, pendente, premioValor) {
 
 const PUBLICO = { todos: 'Todos', cozinha: 'Cozinha', atendimento: 'Atendimento' };
 
-function cardTempo(titulo, item, mes, extra) {
+function cardTempo(titulo, item, mes, extra, quais = 'só entregas') {
   const m = item.meta;
   const diferenca = item.valor !== null && m ? Math.round(item.valor - m.meta) : null;
   return card({
-    titulo, sub: `só entregas, ${rotuloMes(mes)}, sem fiado`, publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
+    titulo, sub: `${quais}, ${rotuloMes(mes)}, sem fiado`, publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, 'Tempo médio'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, item.valor !== null ? mmss(item.valor) : '—'), selo(item.status, 'Sem dados')),
@@ -134,7 +146,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
 
   // Resumo de prêmios por setor: cartão em toda a largura no topo da grade, já com o desconto dos erros.
   const blocoSetor = (setor) => {
-    const x = r[`erros_${setor}`];
+    const x = r.errosDe(setor);
     const bruto = r.premioSetor(setor, previa);
     const desconto = r.descontoSetor(setor);
     const liquido = r.incentivoSetor(setor, previa);
@@ -168,18 +180,16 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   });
 
   const nota = (v) => fmt(v, 2);
-  // O 99food só aparece quando a meta dele está valendo no mês (dono, 08/10/2026: por enquanto só iFood).
-  const com99 = Boolean(r.f99.meta);
-  const plataformas = com99 ? [r.ifood, r.f99] : [r.ifood];
+  // Plataformas com meta valendo no mês: SM só iFood (99food ainda não vale); SP iFood, Keeta e 99food (dono, 08/10/2026).
+  const plataformas = [['iFood', r.ifood], ['Keeta', r.keeta], ['99food', r.f99]].filter(([, p]) => p.meta);
   const cardNotas = card({
-    titulo: com99 ? 'Notas das plataformas' : 'Nota do iFood', sub: 'média das quinzenas do mês', publico: PUBLICO[r.ifood.meta?.publico] ?? '—',
-    tom: plataformas.some((p) => p.status === 'fora') ? 'fora' : null, premioValor: plataformas.reduce((s, p) => s + p.premio, 0),
-    atingido: plataformas.every((p) => p.premio > 0),
+    titulo: plataformas.length > 1 ? 'Notas das plataformas' : 'Nota do iFood', sub: 'média das quinzenas do mês', publico: PUBLICO[r.ifood.meta?.publico] ?? '—',
+    tom: plataformas.some(([, p]) => p.status === 'fora') ? 'fora' : null, premioValor: plataformas.reduce((s, [, p]) => s + p.premio, 0),
+    atingido: plataformas.every(([, p]) => p.premio > 0),
     corpo: el('div', {},
-      el('p', { class: 'ind-meta' }, textoMeta(r.ifood.meta, nota) + (com99 ? ' Para cada plataforma.' : '')),
+      el('p', { class: 'ind-meta' }, textoMeta(r.ifood.meta, nota) + (plataformas.length > 1 ? ' Para cada plataforma.' : '')),
       el('div', { class: 'ind-detail ind-detail-plain' },
-        linha('iFood', 'média do mês', r.ifood.valor !== null ? nota(r.ifood.valor) : '—', r.ifood.status, 'Sem lançamento', r.ifood.premio),
-        com99 && linha('99food', 'média do mês', r.f99.valor !== null ? nota(r.f99.valor) : '—', r.f99.status, 'Sem lançamento', r.f99.premio))),
+        plataformas.map(([nome, p]) => linha(nome, 'média do mês', p.valor !== null ? nota(p.valor) : '—', p.status, 'Sem lançamento', p.premio)))),
   });
 
   const cardNutri = card({
@@ -193,10 +203,12 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
           r[k].valor !== null ? pct(r[k].valor) : '—', r[k].status, 'Sem lançamento', r[k].premio)))),
   });
 
+  // setor null = erros num indicador só (SP).
   const cardErros = (setor) => {
-    const e = r[`erros_${setor}`];
+    const e = setor ? r[`erros_${setor}`] : r.erros;
+    const quem = setor ? `de ${ROTULO_SETOR[setor]}` : 'da Cozinha e do Atendimento';
     return card({
-      titulo: `Erros ${ROTULO_SETOR[setor].toLowerCase()}`,
+      titulo: setor ? `Erros ${ROTULO_SETOR[setor].toLowerCase()}` : 'Erros',
       sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`,
       publico: PUBLICO[e.meta?.publico] ?? '—', tom: e.status, premioValor: e.premio,
       corpo: el('div', {},
@@ -209,22 +221,26 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
           el('div', { class: 'ind-cost' }, el('p', { class: 'ind-cost-label' }, 'Custo dos erros'),
             el('p', { class: 'ind-cost-value' }, e.dias ? '− ' + reais(e.custo) : '—')),
           el('div', { class: 'ind-cost' }, el('p', { class: 'ind-cost-label' }, 'Desconto por pessoa'),
-            el('p', { class: 'ind-cost-value' }, e.custo > 0 ? '− ' + reais(r.descontoSetor(setor)) : '—'))),
-        el('p', { class: 'ind-cost-note' }, `custo dividido entre ${e.pessoas} pessoa(s) de ${ROTULO_SETOR[setor]} da unidade no mês; já descontado do prêmio lá em cima`)),
+            el('p', { class: 'ind-cost-value' }, e.custo > 0 && e.pessoas > 0 ? '− ' + reais(e.custo / e.pessoas) : '—'))),
+        el('p', { class: 'ind-cost-note' }, `custo dividido entre ${e.pessoas} pessoa(s) ${quem} da unidade no mês; já descontado do prêmio lá em cima`)),
     });
   };
 
   const limiteMin = Math.round((d.cozinha_limite_seg ?? 2400) / 60);
+  // SP: cozinha com entregas, balcão e salão; sem "aguardando entregador"; erros num cartão só.
+  const cozinhaTodos = Boolean(d.cozinha_todos_os_tipos);
+  const quaisCozinha = cozinhaTodos ? 'pedidos do mês' : 'entregas do mês';
   // A seção em si não é um cartão (DESIGN.md); cada indicador é.
   conteudo.append(el('section', { class: 'sec-kpis' },
     cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
     el('div', { class: 'ind-grid' },
       resumo,
-      cardTempo('Aguardando entregador', r.aguardando, d.mes,
+      r.aguardando.meta && cardTempo('Aguardando entregador', r.aguardando, d.mes,
         r.aguardando.excluidos ? `${r.aguardando.excluidos} pedido(s) acima de ${Math.round(r.aguardando.limiteSeg / 60)} min fora da média` : 'entregas do mês'),
-      cardTempo('Cozinha (entrega)', r.cozinha, d.mes,
-        r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : 'entregas do mês'),
-      cardErros('atendimento'), cardErros('cozinha'),
+      cardTempo(cozinhaTodos ? 'Cozinha' : 'Cozinha (entrega)', r.cozinha, d.mes,
+        r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : quaisCozinha,
+        cozinhaTodos ? 'entregas, balcão e salão' : 'só entregas'),
+      ...(r.errosUnificado ? [cardErros(null)] : [cardErros('atendimento'), cardErros('cozinha')]),
       cardCmv, cardNotas, cardNutri)),
   );
 }

@@ -132,59 +132,70 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
 
 export async function telaLancamentos(conteudo, ctx) {
   const unidade = ctx.unidade.codigo;
-  // O 99food só aparece quando a meta dele já vale (dono, 08/10/2026: por enquanto só iFood).
-  const { data: meta99 } = await supabase.from('metas').select('indicador')
-    .eq('unidade', unidade).eq('indicador', 'f99').lte('vale_a_partir_de', hojeBrasil()).limit(1);
-  const com99 = Boolean(meta99?.length);
+  // Os campos seguem as metas que valem hoje na unidade (dono, 08/10/2026):
+  // SM: erros por setor e só a nota do iFood; SP: erros num campo só e notas de iFood, Keeta e 99food.
+  const { data: metasHoje } = await supabase.from('metas').select('indicador')
+    .eq('unidade', unidade).in('indicador', ['f99', 'keeta', 'erros']).lte('vale_a_partir_de', hojeBrasil());
+  const vale = (k) => Boolean(metasHoje?.some((m) => m.indicador === k));
+  const errosUnificado = vale('erros');
   const brl = (n) => 'R$ ' + Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const quinzenas = quinzenasRecentes();
   const rotuloQuinzena = (inicio) => quinzenas.find((q) => q.inicio === inicio)?.rotulo
     ?? `Quinzena iniciada em ${dataBR(inicio)}`;
   const seletorQuinzena = () => el('select', { class: 'form-input' },
     quinzenas.map((q) => el('option', { value: q.inicio }, q.rotulo)));
+  const inteiro = () => entradaNumero({ min: 0, step: 1, placeholder: '0' });
+  const dinheiro = () => entradaNumero({ min: 0, step: 0.01, placeholder: '0,00' });
 
   // ----- Erros do dia -----
   const dataErros = el('input', { class: 'form-input', type: 'date', value: hojeBrasil(), max: hojeBrasil(), required: true });
   const erros = formulario({
     titulo: 'Erros do dia',
-    descricao: 'Lance todo dia. Os erros somam no mês; o percentual usa o total de pedidos da Saipos e o custo é descontado do incentivo do setor.',
+    descricao: errosUnificado
+      ? 'Lance todo dia. Os erros somam no mês; o percentual usa o total de pedidos da Saipos e o custo é descontado do incentivo de todos.'
+      : 'Lance todo dia. Os erros somam no mês; o percentual usa o total de pedidos da Saipos e o custo é descontado do incentivo do setor.',
     unidade, tabela: 'erros_diarios', conflito: 'unidade,data',
     chaveDe: () => (dataErros.value ? { data: dataErros.value } : null),
     seletor: [campo('Dia', dataErros)],
-    campos: [
-      { coluna: 'erros_cozinha', rotulo: 'Erros — Cozinha', entrada: entradaNumero({ min: 0, step: 1, placeholder: '0' }), vazio: 0 },
-      { coluna: 'erros_atendimento', rotulo: 'Erros — Atendimento', entrada: entradaNumero({ min: 0, step: 1, placeholder: '0' }), vazio: 0 },
-      { coluna: 'custo_cozinha', rotulo: 'Custo — Cozinha (R$)', entrada: entradaNumero({ min: 0, step: 0.01, placeholder: '0,00' }), vazio: 0 },
-      { coluna: 'custo_atendimento', rotulo: 'Custo — Atendimento (R$)', entrada: entradaNumero({ min: 0, step: 0.01, placeholder: '0,00' }), vazio: 0 },
-    ],
-    validar: (v) => (Number.isInteger(v.erros_cozinha) && Number.isInteger(v.erros_atendimento) ? null : 'A quantidade de erros precisa ser um número inteiro.'),
+    campos: errosUnificado
+      ? [
+        { coluna: 'erros_gerais', rotulo: 'Erros', entrada: inteiro(), vazio: 0 },
+        { coluna: 'custo_geral', rotulo: 'Custo dos erros (R$)', entrada: dinheiro(), vazio: 0 },
+      ]
+      : [
+        { coluna: 'erros_cozinha', rotulo: 'Erros — Cozinha', entrada: inteiro(), vazio: 0 },
+        { coluna: 'erros_atendimento', rotulo: 'Erros — Atendimento', entrada: inteiro(), vazio: 0 },
+        { coluna: 'custo_cozinha', rotulo: 'Custo — Cozinha (R$)', entrada: dinheiro(), vazio: 0 },
+        { coluna: 'custo_atendimento', rotulo: 'Custo — Atendimento (R$)', entrada: dinheiro(), vazio: 0 },
+      ],
+    validar: (v) => ([v.erros_cozinha, v.erros_atendimento, v.erros_gerais].every((n) => n === undefined || Number.isInteger(n))
+      ? null : 'A quantidade de erros precisa ser um número inteiro.'),
     recentes: {
       ordem: 'data',
       selecionar: (l) => { dataErros.value = l.data; },
       rotulo: (l) => dataBR(l.data),
-      resumo: (l) => `${l.erros_cozinha + l.erros_atendimento} erro(s) · ${brl(Number(l.custo_cozinha) + Number(l.custo_atendimento))}`,
+      resumo: (l) => `${l.erros_cozinha + l.erros_atendimento + l.erros_gerais} erro(s) · ${brl(Number(l.custo_cozinha) + Number(l.custo_atendimento) + Number(l.custo_geral))}`,
     },
   });
   dataErros.addEventListener('change', erros.carregar);
 
   // ----- Notas da quinzena -----
+  const plataformas = [['nota_ifood', 'iFood'], ...(vale('keeta') ? [['nota_keeta', 'Keeta']] : []), ...(vale('f99') ? [['nota_99food', '99food']] : [])];
   const quinzenaNotas = seletorQuinzena();
   const notas = formulario({
-    titulo: com99 ? 'Notas das plataformas' : 'Nota do iFood',
+    titulo: plataformas.length > 1 ? 'Notas das plataformas' : 'Nota do iFood',
     descricao: 'Uma vez por quinzena. A média das duas quinzenas é a nota do mês.',
     unidade, tabela: 'notas_quinzena', conflito: 'unidade,inicio',
     chaveDe: () => ({ inicio: quinzenaNotas.value }),
     seletor: [campo('Quinzena', quinzenaNotas)],
-    campos: [
-      { coluna: 'nota_ifood', rotulo: 'Nota iFood', entrada: entradaNumero({ min: 0, max: 5, step: 0.01, placeholder: '0,00' }) },
-      ...(com99 ? [{ coluna: 'nota_99food', rotulo: 'Nota 99food', entrada: entradaNumero({ min: 0, max: 5, step: 0.01, placeholder: '0,00' }) }] : []),
-    ],
-    validar: (v) => (v.nota_ifood == null && v.nota_99food == null ? (com99 ? 'Preencha pelo menos uma nota.' : 'Preencha a nota do iFood.') : null),
+    campos: plataformas.map(([coluna, nome]) => ({ coluna, rotulo: `Nota ${nome}`, entrada: entradaNumero({ min: 0, max: 5, step: 0.01, placeholder: '0,00' }) })),
+    validar: (v) => (plataformas.every(([coluna]) => v[coluna] == null)
+      ? (plataformas.length > 1 ? 'Preencha pelo menos uma nota.' : 'Preencha a nota do iFood.') : null),
     recentes: {
       ordem: 'inicio',
       selecionar: (l) => { quinzenaNotas.value = l.inicio; },
       rotulo: (l) => rotuloQuinzena(l.inicio),
-      resumo: (l) => (com99 ? `iFood ${l.nota_ifood ?? '—'} · 99food ${l.nota_99food ?? '—'}` : `iFood ${l.nota_ifood ?? '—'}`),
+      resumo: (l) => plataformas.map(([coluna, nome]) => `${nome} ${l[coluna] ?? '—'}`).join(' · '),
     },
   });
   quinzenaNotas.addEventListener('change', notas.carregar);
