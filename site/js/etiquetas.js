@@ -2,7 +2,7 @@
 // Adaptado do pacote do dono (08/10/2026). Insumos e responsáveis não são cadastrados pelo site (só por SQL,
 // a pedido do dono) e o histórico de impressões não pode ser apagado pelo site.
 import { supabase } from './supabase.js';
-import { el, limpar, avisar, primeiroNome } from './util.js';
+import { el, limpar, avisar } from './util.js';
 import { Impressora, canvasParaLinhas, suportaBluetooth, LARGURA_PX } from './niimbot.js';
 
 const ALTURA_PX = 240; // 30 mm a 203 dpi
@@ -115,13 +115,13 @@ export function telaEtiquetas(conteudo, ctx) {
   const estado = {
     aba: 'imprimir',
     insumos: [],
-    responsaveis: [],
     historico: [],
     insumoId: null,
     metodo: null,
     copias: 1,
     manipulacao: new Date(),
-    responsavel: '',
+    // Responsável é sempre quem está logado (pedido do dono); o banco grava o mesmo nome no histórico.
+    responsavel: ctx.eu.nome,
     categoriasAbertas: new Set(),
   };
 
@@ -135,21 +135,13 @@ export function telaEtiquetas(conteudo, ctx) {
   const insumoAtual = () => estado.insumos.find((i) => i.id === estado.insumoId) || null;
 
   async function carregarListas() {
-    const [ins, resp] = await Promise.all([
-      supabase.from('etiqueta_insumos').select('*').eq('unidade', unidade).order('nome'),
-      supabase.from('etiqueta_responsaveis').select('*').eq('unidade', unidade).order('nome'),
-    ]);
-    if (ins.error || resp.error) {
-      avisar('Não foi possível carregar as listas: ' + (ins.error || resp.error).message, 'erro');
+    const { data, error } = await supabase.from('etiqueta_insumos').select('*').eq('unidade', unidade).order('nome');
+    if (error) {
+      avisar('Não foi possível carregar os insumos: ' + error.message, 'erro');
       return;
     }
-    estado.insumos = ins.data;
-    estado.responsaveis = resp.data;
+    estado.insumos = data;
     if (!insumoAtual()) { estado.insumoId = null; estado.metodo = null; }
-    const nomes = estado.responsaveis.map((r) => r.nome);
-    if (!nomes.includes(estado.responsavel)) {
-      estado.responsavel = nomes.find((n) => n.toLowerCase() === primeiroNome(ctx.eu.nome).toLowerCase()) ?? nomes[0] ?? '';
-    }
   }
 
   async function carregarHistorico() {
@@ -177,8 +169,6 @@ export function telaEtiquetas(conteudo, ctx) {
     const listaInsumos = el('div', { class: 'et-categorias' });
     const listaMetodos = el('div', { class: 'et-chips' });
     const campoData = el('input', { type: 'datetime-local', class: 'form-input', value: paraCampoData(estado.manipulacao) });
-    const seletorResp = el('select', { class: 'form-input' },
-      estado.responsaveis.map((r) => el('option', { value: r.nome, selected: r.nome === estado.responsavel }, r.nome)));
     const numeroCopias = el('span', { class: 'et-copias-n', 'aria-live': 'polite' }, String(estado.copias));
     const situacao = el('p', { class: 'et-situacao', 'aria-live': 'polite' });
     const estadoImpressora = el('p', { class: 'et-impressora' });
@@ -258,7 +248,6 @@ export function telaEtiquetas(conteudo, ctx) {
     botaoImprimir.addEventListener('click', async () => {
       const { ins, met, manip, validade } = dadosDaEtiqueta();
       if (!ins || !met) return avisar('Escolha o insumo e a forma de armazenamento.', 'erro');
-      if (!estado.responsavel) return avisar('Escolha o responsável.', 'erro');
       if (Number.isNaN(manip.getTime())) return avisar('Informe a data de manipulação.', 'erro');
       botaoImprimir.disabled = true;
       try {
@@ -288,7 +277,6 @@ export function telaEtiquetas(conteudo, ctx) {
       const d = new Date(campoData.value);
       if (!Number.isNaN(d.getTime())) { estado.manipulacao = d; previa(); }
     });
-    seletorResp.addEventListener('change', () => { estado.responsavel = seletorResp.value; previa(); });
 
     const mudarCopias = (delta) => {
       estado.copias = Math.min(MAX_COPIAS, Math.max(1, estado.copias + delta));
@@ -305,7 +293,7 @@ export function telaEtiquetas(conteudo, ctx) {
         el('div', { class: 'form-row' }, el('p', { class: 'form-label' }, 'Forma de armazenamento'), listaMetodos),
         el('div', { class: 'form-row-pair form-row' },
           el('div', {}, el('label', { class: 'form-label' }, 'Manipulação'), campoData),
-          el('div', {}, el('label', { class: 'form-label' }, 'Responsável'), seletorResp)),
+          el('div', {}, el('p', { class: 'form-label' }, 'Responsável'), el('p', { class: 'et-responsavel' }, estado.responsavel))),
         el('div', { class: 'form-row' },
           el('p', { class: 'form-label' }, 'Cópias'),
           el('div', { class: 'et-copias' },
