@@ -161,6 +161,13 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 .hero-value sup { font-size: .32em; font-weight: 500; letter-spacing: 0; color: var(--ink-2); margin-right: .45em; vertical-align: top; position: relative; top: .35em; }
 .sec-faturamento .stat-sub { margin: 12px 0 0; font-size: 13px; color: var(--ink-3); }
 .sec-faturamento .aviso { margin-top: 14px; }
+/* Pedidos do mês em destaque e os últimos 3 dias (pedido do dono, 08/10/2026). */
+.pedidos-mes { margin: 14px 0 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+.dias-recentes { margin-top: 16px; }
+.dia-recente { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+.dia-recente:last-child { border-bottom: 1px solid var(--line); }
+.dia-recente .dia-semana { color: var(--ink-2); }
+.dia-recente strong { font-weight: 600; white-space: nowrap; }
 .channel-bar { display: flex; width: 100%; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 24px 0 8px; background: var(--track); }
 .channel-bar div { height: 100%; }
 .channel-list { display: flex; flex-direction: column; }
@@ -383,10 +390,11 @@ button:disabled { opacity: .55; cursor: wait; }
   .sec-faturamento { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: 56px; align-content: start; }
   .sec-faturamento .section-head { grid-column: 1 / -1; }
   .sec-faturamento .hero-wrap { grid-column: 1; grid-row: 2; }
-  .sec-faturamento .stat-sub { grid-column: 1; grid-row: 3; }
-  .sec-faturamento .aviso { grid-column: 1; grid-row: 4; align-self: start; }
+  .sec-faturamento .pedidos-mes { grid-column: 1; grid-row: 3; }
+  .sec-faturamento .dias-recentes { grid-column: 1; grid-row: 4; align-self: start; }
+  .sec-faturamento .aviso { grid-column: 1; grid-row: 5; align-self: start; }
   .sec-faturamento .channel-bar { grid-column: 2; grid-row: 2; align-self: center; margin: 0; }
-  .sec-faturamento .channel-list { grid-column: 2; grid-row: 3 / span 2; margin-top: 14px; }
+  .sec-faturamento .channel-list { grid-column: 2; grid-row: 3 / span 3; margin-top: 14px; }
   .sec-ticket, .sec-cmv, .sec-produtos, .sec-burgers { grid-column: span 3; }
   .sec-combos { grid-column: 1 / -1; }
 }

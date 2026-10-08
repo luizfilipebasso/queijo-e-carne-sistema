@@ -18,6 +18,11 @@ export const CANAIS = {
 export const reais = (n, casas = 2) => 'R$ ' + Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 export const pct = (n, casas = 1) => Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }) + '%';
 const inteiro = (n) => Number(n ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+// "2026-10-06" -> "segunda-feira"
+const diaDaSemana = (iso) => {
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(a, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long' });
+};
 
 export function cabecalho(titulo, etiqueta, nomeIcone) {
   return el('div', { class: 'section-head' },
@@ -74,8 +79,12 @@ export async function telaPainel(conteudo, ctx) {
   const secFaturamento = el('section', { class: 'sec-faturamento' },
     cabecalho(`Faturamento acumulado · ${ctx.unidade.nome}`, p.atualizado_ate ? `até ${dataBR(p.atualizado_ate)}` : 'sem vendas ainda', 'dinheiro'),
     el('div', { class: 'hero-wrap' }, el('p', { class: 'hero-value' }, el('sup', {}, 'R$'), Math.round(fat).toLocaleString('pt-BR'))),
-    el('p', { class: 'stat-sub' },
-      p.ultimo_dia?.data ? `Dia ${dataBR(p.ultimo_dia.data)}: ${reais(p.ultimo_dia.faturamento)} · ${inteiro(p.pedidos)} pedidos no mês` : 'Sem vendas no mês ainda.'),
+    el('p', { class: 'pedidos-mes' }, p.pedidos ? `${inteiro(p.pedidos)} pedidos no mês` : 'Sem vendas no mês ainda.'),
+    // Últimos 3 dias com vendas no mês: data, dia da semana e faturamento.
+    (p.ultimos_dias ?? []).length > 0 && el('div', { class: 'dias-recentes' },
+      p.ultimos_dias.map((dia) => el('div', { class: 'dia-recente' },
+        el('span', {}, dataBR(dia.data), el('span', { class: 'dia-semana' }, ` · ${diaDaSemana(dia.data)}`)),
+        el('strong', {}, reais(dia.faturamento))))),
     !ctx.unidade.sincronizar && el('p', { class: 'aviso' },
       'A busca automática na Saipos ainda não está ligada para esta unidade (falta o token).'),
     el('div', { class: 'channel-bar' }, canais.map((c) => el('div', { style: `width:${fat ? (c.faturamento / fat) * 100 : 0}%; background:${c.cor}` }))),
