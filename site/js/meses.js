@@ -1,7 +1,8 @@
-// Meses que podem ser consultados: do início do projeto (primeiro mês com dados da Saipos) até o mês atual.
+// Meses que podem ser consultados: do primeiro mês com dados da Saipos até o mês atual.
+// Setembro de 2026 foi carregado depois, para comparação (dono, 09/10/2026).
 import { hojeBrasil } from './lancamentos.js';
 
-export const INICIO_PROJETO = '2026-10-01';
+export const INICIO_PROJETO = '2026-09-01';
 
 export function mesAtual() {
   return hojeBrasil().slice(0, 8) + '01';
