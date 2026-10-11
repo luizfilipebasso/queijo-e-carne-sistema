@@ -136,37 +136,58 @@ export class Impressora {
     }
   }
 
-  // Espera a impressora terminar a página: pergunta o status até ela dizer que imprimiu e avançou o papel.
-  // Se ela não responder em 3 s, segue em frente (era o tempo fixo da versão anterior).
-  async esperarTerminar() {
+  // Espera a impressora terminar: pergunta o status até a página impressa chegar ao número de cópias.
+  // Devolve como terminou: "ok", "parou" (a impressora parou antes de todas as cópias) ou "sem-status"
+  // (não respondeu em 3 s; aí espera um tempo fixo por cópia, como a versão anterior).
+  async esperarTerminar(copias, progresso) {
     this.ultimoStatus = null;
     const inicio = Date.now();
-    while (Date.now() - inicio < 8000) {
+    let ultimaPagina = -1;
+    let mudouEm = Date.now();
+    while (Date.now() - inicio < 6000 + copias * 5000) {
       await this.enviar(0xa3, [1]);
       await pausa(250);
       const s = this.ultimoStatus;
-      if (s && s.pagina >= 1 && s.impressao >= 100 && s.papel >= 100) return;
-      if (!s && Date.now() - inicio >= 3000) return;
+      if (!s) {
+        if (Date.now() - inicio >= 3000) return { como: 'sem-status', impressas: null };
+        continue;
+      }
+      if (s.pagina !== ultimaPagina) {
+        ultimaPagina = s.pagina;
+        mudouEm = Date.now();
+        if (copias > 1) progresso(`Imprimindo ${Math.min(s.pagina + 1, copias)} de ${copias}…`);
+      }
+      const paginaPronta = s.impressao >= 100 && s.papel >= 100;
+      if (paginaPronta && s.pagina >= copias) return { como: 'ok', impressas: s.pagina };
+      // Parada: a página atual terminou e nada mudou em 5 s (ex.: a impressora ignorou o pedido de cópias).
+      if (paginaPronta && Date.now() - mudouEm > 5000) return { como: 'parou', impressas: s.pagina };
     }
+    return { como: 'parou', impressas: Math.max(ultimaPagina, 0) };
   }
 
   // Imprime uma etiqueta já convertida em linhas (veja canvasParaLinhas), "copias" vezes.
+  // Manda o desenho uma vez só e pede as cópias à impressora (como o app NiimBlue; dono, 11/10/2026).
+  // Rede de segurança: se ela parar antes, imprime as que faltaram uma a uma.
   async imprimir(linhas, copias = 1, progresso = () => {}) {
     if (!this.conectada) throw new Error('Impressora desconectada.');
-    for (let c = 1; c <= copias; c++) {
-      progresso(`Imprimindo ${c} de ${copias}…`);
-      await this.imprimirUma(linhas);
+    progresso(copias > 1 ? `Imprimindo 1 de ${copias}…` : 'Imprimindo…');
+    const r = await this.imprimirPagina(linhas, copias, progresso);
+    if (r.como === 'parou' && r.impressas >= 1 && r.impressas < copias) {
+      for (let c = r.impressas + 1; c <= copias; c++) {
+        progresso(`Imprimindo ${c} de ${copias}…`);
+        await this.imprimirPagina(linhas, 1, () => {});
+      }
     }
   }
 
-  async imprimirUma(linhas) {
+  async imprimirPagina(linhas, copias, progresso) {
     const total = linhas.length;
     await this.enviar(0xc1, [1]);
     await this.enviar(0x21, [3]);            // densidade
     await this.enviar(0x23, [1]);            // tipo de etiqueta: com espaço entre elas
-    await this.enviar(0x01, [...u16(1), 0, 0, 0, 0, 0]); // começa a impressão
+    await this.enviar(0x01, [...u16(copias), 0, 0, 0, 0, 0]); // começa a impressão (total de páginas)
     await this.enviar(0x03, [1]);            // começa a página
-    await this.enviar(0x13, [...u16(total), ...u16(LARGURA_PX), ...u16(1)]); // altura, largura, cópias da página
+    await this.enviar(0x13, [...u16(total), ...u16(LARGURA_PX), ...u16(copias)]); // altura, largura, cópias da página
 
     let y = 0;
     while (y < total) {
@@ -179,7 +200,9 @@ export class Impressora {
     }
 
     await this.enviar(0xe3, [1]);            // fim da página
-    await this.esperarTerminar();            // pergunta o status até a impressora terminar
+    const r = await this.esperarTerminar(copias, progresso);
+    if (r.como === 'sem-status' && copias > 1) await pausa((copias - 1) * 2500); // sem status: tempo fixo por cópia
     await this.enviar(0xf3, [1]);            // fim da impressão
+    return r;
   }
 }
