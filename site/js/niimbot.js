@@ -49,6 +49,9 @@ export class Impressora {
     this.dispositivo = null;
     this.caracteristica = null;
     this.aoDesconectar = null;
+    this.recebido = [];        // bytes que a impressora mandou (respostas), montados em pacotes
+    this.ultimoStatus = null;  // última resposta ao pedido de status (0xA3 → 0xB3)
+    this.semResposta = false;  // true se o aparelho não aceitar envio sem confirmação
   }
 
   get conectada() {
@@ -76,7 +79,30 @@ export class Impressora {
     const servidor = await this.dispositivo.gatt.connect();
     const servico = await servidor.getPrimaryService(SERVICO);
     this.caracteristica = await servico.getCharacteristic(CARACTERISTICA);
-    await this.caracteristica.startNotifications(); // a impressora só responde com isso ligado; não precisamos ler as respostas
+    // A impressora só responde com as notificações ligadas. Lemos só o status de impressão (para saber quando terminou).
+    this.caracteristica.addEventListener('characteristicvaluechanged', (e) => this.receber(e.target.value));
+    await this.caracteristica.startNotifications();
+  }
+
+  // Junta os pedaços que chegam e separa os pacotes 55 55 … AA AA.
+  receber(dataView) {
+    for (let i = 0; i < dataView.byteLength; i++) this.recebido.push(dataView.getUint8(i));
+    for (;;) {
+      const ini = this.recebido.findIndex((b, i) => b === 0x55 && this.recebido[i + 1] === 0x55);
+      if (ini < 0) { this.recebido = []; return; }
+      if (ini > 0) this.recebido.splice(0, ini);
+      if (this.recebido.length < 4) return;
+      const tam = this.recebido[3];
+      const fim = 4 + tam + 3;
+      if (this.recebido.length < fim) return;
+      const comando = this.recebido[2];
+      const dados = this.recebido.slice(4, 4 + tam);
+      this.recebido.splice(0, fim);
+      // Resposta de status: página (2 bytes), progresso da impressão e do avanço do papel (0 a 100).
+      if (comando === 0xb3 && dados.length >= 4) {
+        this.ultimoStatus = { pagina: (dados[0] << 8) | dados[1], impressao: dados[2], papel: dados[3] };
+      }
+    }
   }
 
   desconectar() {
@@ -84,10 +110,21 @@ export class Impressora {
     this.caracteristica = null;
   }
 
+  // Envio rápido (como o app NiimBlue): o pacote inteiro sem esperar confirmação, com 10 ms entre pacotes.
+  // Se o aparelho recusar, passa a mandar com confirmação (mais lento, mas funciona).
   async enviar(comando, dados) {
     const bytes = pacote(comando, dados);
     const c = this.caracteristica;
     if (!c) throw new Error('Impressora desconectada.');
+    if (c.properties.writeWithoutResponse && !this.semResposta) {
+      try {
+        await c.writeValueWithoutResponse(bytes);
+        await pausa(10);
+        return;
+      } catch {
+        this.semResposta = true;
+      }
+    }
     if (c.properties.write) {
       await c.writeValueWithResponse(bytes);
     } else {
@@ -95,8 +132,22 @@ export class Impressora {
         await c.writeValueWithoutResponse(bytes.slice(i, i + 20));
         await pausa(10);
       }
+      await pausa(15);
     }
-    await pausa(15);
+  }
+
+  // Espera a impressora terminar a página: pergunta o status até ela dizer que imprimiu e avançou o papel.
+  // Se ela não responder em 3 s, segue em frente (era o tempo fixo da versão anterior).
+  async esperarTerminar() {
+    this.ultimoStatus = null;
+    const inicio = Date.now();
+    while (Date.now() - inicio < 8000) {
+      await this.enviar(0xa3, [1]);
+      await pausa(250);
+      const s = this.ultimoStatus;
+      if (s && s.pagina >= 1 && s.impressao >= 100 && s.papel >= 100) return;
+      if (!s && Date.now() - inicio >= 3000) return;
+    }
   }
 
   // Imprime uma etiqueta já convertida em linhas (veja canvasParaLinhas), "copias" vezes.
@@ -128,10 +179,7 @@ export class Impressora {
     }
 
     await this.enviar(0xe3, [1]);            // fim da página
-    for (let i = 0; i < 6; i++) {            // espera a impressora terminar de imprimir
-      await pausa(500);
-      await this.enviar(0xa3, [1]);
-    }
+    await this.esperarTerminar();            // pergunta o status até a impressora terminar
     await this.enviar(0xf3, [1]);            // fim da impressão
   }
 }
