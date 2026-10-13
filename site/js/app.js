@@ -10,7 +10,10 @@ import { telaLinks } from './links.js';
 import { mesAtual, mesesDisponiveis, nomeMes } from './meses.js';
 
 const raiz = document.getElementById('app');
-const RODAPE = 'Queijo e Carne Burger LTDA — CNPJ 37.208.946/0001-58';
+// Rodapé com o CNPJ da unidade escolhida (cada loja tem o seu; dono, 13/10/2026). Login e avisos usam o da matriz (SM).
+const CNPJ = { SM: '37.208.946/0001-58', SP: '54.869.008/0001-18' };
+const rodape = (unidade = 'SM') => `Queijo e Carne Burger LTDA — CNPJ ${CNPJ[unidade] ?? CNPJ.SM}`;
+const RODAPE = rodape();
 const CHAVE_UNIDADE = 'qc_unidade';
 const CHAVE_MES = 'qc_mes';
 
@@ -119,7 +122,7 @@ function telaEscolherSetor(ctx) {
       ),
       el('p', { class: 'login-nota' }, 'O dono vai confirmar o seu setor.'),
     ),
-    el('footer', {}, RODAPE),
+    el('footer', {}, rodape(ctx.unidade.codigo)),
   );
 }
 
@@ -195,7 +198,7 @@ function montarSistema(ctx) {
         el('button', { class: 'btn-sair', onclick: sair }, 'Sair')),
     ),
     conteudo,
-    el('footer', {}, RODAPE),
+    el('footer', {}, rodape(ctx.unidade.codigo)),
   );
   mostrar();
 }
