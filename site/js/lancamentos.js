@@ -2,6 +2,7 @@
 // Cada formulário carrega o que já existe para a data escolhida: lançar de novo corrige.
 import { supabase } from './supabase.js';
 import { el, avisar } from './util.js';
+import { abrirPdf, enviarPdf } from './documentos.js';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -48,8 +49,11 @@ function entradaNumero(atributos) {
 
 // Monta um formulário genérico ligado a uma tabela.
 // "extras" devolve colunas que não são números digitados (ex.: a data da visita).
-function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, extras, seletor, campos, validar, recentes }) {
+// "anexo" (opcional): PDF enviado junto, guardado no sistema; { rotulo, caminhoDe(chave) } e coluna "arquivo".
+function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, extras, seletor, campos, validar, recentes, anexo }) {
   const situacao = el('p', { class: 'form-situacao' });
+  const arquivoEntrada = anexo && el('input', { class: 'form-input', type: 'file', accept: 'application/pdf' });
+  const anexoInfo = anexo && el('p', { class: 'form-situacao' });
   const listaRecentes = el('div', { class: 'recentes' });
   const botaoApagar = el('button', { class: 'btn-sec btn-perigo', type: 'button', hidden: true }, 'Apagar este lançamento');
   // Todo lançamento pertence a uma unidade: ela faz parte da identificação.
@@ -60,6 +64,7 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
     for (const c of campos) c.entrada.value = '';
     botaoApagar.hidden = true;
     situacao.textContent = '';
+    if (anexo) { arquivoEntrada.value = ''; anexoInfo.replaceChildren('Nenhum PDF enviado ainda.'); }
     if (!chave) return;
     let consulta = supabase.from(tabela).select('*');
     for (const [k, v] of Object.entries(chave)) consulta = consulta.eq(k, v);
@@ -68,6 +73,12 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
       for (const c of campos) c.entrada.value = data[c.coluna] ?? '';
       situacao.textContent = 'Já lançado. Salvar de novo substitui os valores.';
       botaoApagar.hidden = false;
+      if (anexo && data.arquivo) {
+        anexoInfo.replaceChildren('PDF já enviado. ', el('button', {
+          type: 'button', class: 'btn-link',
+          onclick: () => abrirPdf(data.arquivo).catch((e) => avisar(e.message, 'erro')),
+        }, 'Abrir'), ' · escolher outro arquivo substitui.');
+      }
     }
   }
 
@@ -108,6 +119,12 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
       }
       const problema = validar?.(valores, chave);
       if (problema) return avisar(problema, 'erro');
+      const arquivo = anexo && arquivoEntrada.files?.[0];
+      if (arquivo) {
+        const caminho = anexo.caminhoDe(chave);
+        try { await enviarPdf(caminho, arquivo); } catch (er) { return avisar('Não foi possível enviar o PDF: ' + er.message, 'erro'); }
+        valores.arquivo = caminho;
+      }
       const { error } = await supabase.from(tabela).upsert({ ...chave, ...extras?.(), ...valores }, { onConflict: conflito });
       if (error) return avisar('Não foi possível salvar: ' + error.message, 'erro');
       avisar('Lançado! Já aparece em Desempenho.');
@@ -116,6 +133,7 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
   },
     seletor.map((s) => el('div', { class: 'form-row' }, s)),
     el('div', { class: 'form-grid' }, campos.map((c) => campo(c.rotulo, c.entrada))),
+    anexo && el('div', { class: 'form-row' }, campo(anexo.rotulo, arquivoEntrada), anexoInfo),
     situacao,
     el('button', { class: 'btn-primary', type: 'submit' }, 'Salvar'),
     botaoApagar,
@@ -239,11 +257,13 @@ export async function telaLancamentos(conteudo, ctx) {
       { coluna: 'nota_pct', rotulo: 'Nota (%)', entrada: entradaNumero({ min: 0, max: 100, step: 0.1, placeholder: '0,0' }) },
     ],
     validar: (v) => (v.nota_pct === null ? 'Preencha a nota.' : null),
+    // PDF do relatório (dono, 15/10/2026): aparece em Links importantes para a equipe da unidade.
+    anexo: { rotulo: 'Relatório (PDF)', caminhoDe: (c) => `${c.unidade}/nutri/${c.mes.slice(0, 7)}-visita${c.visita}.pdf` },
     recentes: {
       ordem: 'data_visita',
       selecionar: (l) => { dataVisita.value = l.data_visita; numeroVisita.value = String(l.visita); },
       rotulo: (l) => `${l.visita}ª visita · ${dataBR(l.data_visita)}`,
-      resumo: (l) => `${Number(l.nota_pct).toLocaleString('pt-BR')}%`,
+      resumo: (l) => `${Number(l.nota_pct).toLocaleString('pt-BR')}%${l.arquivo ? ' · PDF' : ''}`,
     },
   });
   numeroVisita.addEventListener('change', nutri.carregar);

@@ -138,7 +138,8 @@ function abasDe(ctx) {
   }
   if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
   // Etiquetas: liberada também para dono e gerente (dono, 08/10/2026).
-  const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos'], ['etiquetas', 'Etiquetas']];
+  // Links importantes também para dono e gerente: são eles que enviam os PDFs (dono, 15/10/2026).
+  const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
   if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
   return abas;
 }
