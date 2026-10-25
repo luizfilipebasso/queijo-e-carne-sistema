@@ -18,6 +18,7 @@
   --bad: #A33A2B;  --bad-soft: rgba(163, 58, 43, .10);  --bad-line: rgba(163, 58, 43, .40);
   /* Texto pequeno verde/vermelho sobre fundo suave: ajuste de contraste (meta 4,5:1 do DESIGN.md) */
   --good-ink: #285C2E; --bad-ink: #A33A2B;
+  --super-bg: #2F6B35; --super-ink: #FFFFFF;  /* etiqueta do prêmio de super meta */
   --bar: #231710; --bar-ink: #F3E9D3; --bar-ink-2: #CDBE9F;
   --inv-bg: #2B1E12; --inv-ink: #FBF3DC; --inv-ink-2: #D3C6A8; --inv-ink-3: #B0A287;
   --inv-rule: rgba(251, 243, 220, .18); --inv-track: rgba(251, 243, 220, .16); --inv-good: #93CC87; --inv-bad: #F0988A;
@@ -38,6 +39,7 @@
     --good: #8FC272; --good-soft: rgba(143, 194, 114, .14); --good-line: rgba(143, 194, 114, .45);
     --bad: #EA8575; --bad-soft: rgba(234, 133, 117, .13); --bad-line: rgba(234, 133, 117, .42);
     --good-ink: #8FC272; --bad-ink: #F2A193;
+    --super-bg: #8FC272; --super-ink: #14240F;
     --bar: #0E0905;
     --inv-bg: #F0B13A; --inv-ink: #1E140C; --inv-ink-2: #4A3410; --inv-ink-3: #5E4412;
     --inv-rule: rgba(30, 20, 12, .22); --inv-track: rgba(30, 20, 12, .16); --inv-good: #1F5A27; --inv-bad: #8E1B10;
@@ -53,6 +55,7 @@
   --good: #8FC272; --good-soft: rgba(143, 194, 114, .14); --good-line: rgba(143, 194, 114, .45);
   --bad: #EA8575; --bad-soft: rgba(234, 133, 117, .13); --bad-line: rgba(234, 133, 117, .42);
   --good-ink: #8FC272; --bad-ink: #F2A193;
+  --super-bg: #8FC272; --super-ink: #14240F;
   --bar: #0E0905;
   --inv-bg: #F0B13A; --inv-ink: #1E140C; --inv-ink-2: #4A3410; --inv-ink-3: #5E4412;
   --inv-rule: rgba(30, 20, 12, .22); --inv-track: rgba(30, 20, 12, .16); --inv-good: #1F5A27; --inv-bad: #8E1B10;
@@ -267,7 +270,6 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 
 .kpi-status { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px; }
 .kpi-status.pending { color: var(--ink-3); background: var(--track); }
-.kpi-status.super { color: var(--inv-ink); background: var(--inv-bg); }
 .kpi-status.meta { color: var(--good-ink); background: var(--good-soft); }
 /* Dentro de áreas verdes (meta batida), o selo usa o fundo do cartão e o texto de apoio fica mais forte. */
 .reached .kpi-status.meta { background: var(--card); }
@@ -278,13 +280,10 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 .ind-row .ind-reward { font-size: 14px; padding: 2px 9px; }
 .ind-card.reached { background-image: linear-gradient(var(--good-soft), var(--good-soft)); border-color: var(--good); }
 .ind-row.reached { background-image: linear-gradient(var(--good-soft), var(--good-soft)); border-radius: 8px; padding: 10px 12px; margin-inline: -12px; border-bottom-color: transparent; }
-.ind-card.reached-super, .ind-row.reached-super {
-  --ink: var(--inv-ink); --ink-2: var(--inv-ink-2); --ink-3: var(--inv-ink-3); --line: var(--inv-rule); --track: var(--inv-track);
-  --good: var(--inv-good); --bad: var(--inv-bad); --good-ink: var(--inv-good); --bad-ink: var(--inv-bad); --card-2: var(--inv-track);
-  background-color: var(--inv-bg); background-image: none; color: var(--inv-ink);
-}
-.ind-card.reached-super { border-color: var(--inv-bg); }
-.reached-super .ind-reward, .reached-super .kpi-status.super { background: var(--inv-ink); color: var(--inv-bg); }
+/* Super meta (dono, 25/10/2026): mesmo verde-claro da meta; o destaque fica no prêmio e no selo, em verde forte com estrela. */
+.reached-super .ind-reward, .kpi-status.super { background: var(--super-bg); color: var(--super-ink); }
+.reached-super .ind-reward::before { content: "★ "; }
+.ind-card.reached-super > .ind-head .ind-reward { font-size: 20px; padding: 5px 14px; box-shadow: 0 0 0 3px var(--good-soft); }
 
 .ind-cost-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 16px; }
 .ind-cost { padding: 14px 16px; border: 1px solid var(--bad-line); background: var(--bad-soft); border-radius: 10px; }
