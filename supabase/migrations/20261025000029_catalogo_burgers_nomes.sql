@@ -1,5 +1,5 @@
 -- Reconhecimento de hambúrgueres (conferência do dono, 25/10/2026). Antes, ficavam fora da contagem:
---   * nomes do totem com número na frente ("9. Double Flip", "1. Queijo e Carne (...)") → o número é ignorado;
+--   * nomes com número na frente ("9. Double Flip": é o código do burger no 99food, não quantidade) → o número é ignorado;
 --   * "Queijo e Carne (Cheddar ou Mussarela)" / "Queijo e Carne (Cheddar)" → o parêntese não era aceito;
 --   * "2x burgers Double Cbb" (2 burgers) e "Chicken'n Cheese" (com apóstrofo);
 --   * "Catupibacon" passa a contar como hambúrguer (dono). "Burger doce" (sobremesa) continua fora (dono).
