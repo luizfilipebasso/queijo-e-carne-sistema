@@ -195,8 +195,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
   };
   const resumo = el('div', { class: 'ind-card ind-resumo' },
     setor ? blocoSetor(setor) : el('div', { class: 'grid-3' }, blocoSetor('cozinha'), blocoSetor('atendimento'), blocoSetor('producao')),
-    previa && (!setor || paraSetor(r.cmv.meta, setor)) && el('p', { class: 'aviso ind-previa' },
-      'Prévia: o mês ainda não fechou. O CMV entra no cálculo quando as duas quinzenas estiverem lançadas e o mês terminar.'),
+    previa && el('p', { class: 'aviso ind-previa' }, 'Prévia: o mês ainda não fechou.'),
   );
 
   const nomeQuinzena = (inicio) => (inicio.endsWith('-01') ? '1ª quinzena' : '2ª quinzena');
