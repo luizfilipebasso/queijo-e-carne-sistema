@@ -10,7 +10,7 @@ const ROTULO_STATUS = { super: 'Super meta', meta: 'Na meta', fora: 'Fora da met
 // Indicadores que dão prêmio. As duas visitas da nutricionista usam a mesma meta ("nutri").
 // Erros: em SM, um indicador por setor (erros_cozinha / erros_atendimento); em SP, um só ("erros", para todos).
 // Cada unidade só usa os indicadores com meta valendo no mês (dono, 08/10/2026).
-const PREMIADOS = ['aguardando', 'cozinha', 'cmv', 'ifood', 'keeta', 'f99', 'nutri1', 'nutri2', 'erros', 'erros_cozinha', 'erros_atendimento'];
+const PREMIADOS = ['aguardando', 'cozinha', 'cmv', 'ifood', 'keeta', 'f99', 'nutri1', 'nutri2', 'erros', 'erros_cozinha', 'erros_atendimento', 'burgers'];
 const SETORES = ['cozinha', 'atendimento'];
 const ROTULO_SETOR = { cozinha: 'Cozinha', atendimento: 'Atendimento' };
 const metaDe = (metas, chave) => metas[chave.startsWith('nutri') ? 'nutri' : chave];
@@ -52,6 +52,8 @@ export function calcular(d) {
   r.ifood = { valor: media(d.notas.map((n) => num(n.nota_ifood)).filter((v) => v !== null)) };
   r.f99 = { valor: media(d.notas.map((n) => num(n.nota_99food)).filter((v) => v !== null)) };
   r.keeta = { valor: media(d.notas.map((n) => num(n.nota_keeta)).filter((v) => v !== null)) };
+  // Burgers vendidos no mês (avulsos + dentro de combos; só SM tem meta, desde outubro de 2026).
+  r.burgers = { valor: num(d.burgers_vendidos) };
   for (const v of [1, 2]) {
     const visita = d.nutri.find((n) => n.visita === v);
     r[`nutri${v}`] = { valor: num(visita?.nota), data: visita?.data };
@@ -226,6 +228,25 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
     });
   };
 
+  const inteiroBR = (v) => Math.round(Number(v)).toLocaleString('pt-BR');
+  const cardBurgers = () => {
+    const b = r.burgers;
+    const m = b.meta;
+    const falta = (alvo) => (b.valor === null ? '—' : b.valor >= alvo ? 'batida' : inteiroBR(alvo - b.valor));
+    return card({
+      titulo: 'Burgers vendidos',
+      sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`,
+      publico: PUBLICO[m?.publico] ?? '—', tom: b.status, premioValor: b.premio,
+      corpo: el('div', {},
+        el('p', { class: 'ind-label' }, 'Avulsos + dentro de combos'),
+        el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, b.valor !== null ? inteiroBR(b.valor) : '—'), selo(b.status, 'Sem dados')),
+        el('p', { class: 'ind-meta' }, textoMeta(m, inteiroBR)),
+        el('div', { class: 'ind-detail' },
+          linha('Faltam para a meta', m ? `meta de ${inteiroBR(m.meta)}` : '', m ? falta(Number(m.meta)) : '—'),
+          linha('Faltam para a super meta', m ? `super meta de ${inteiroBR(m.super_meta)}` : '', m ? falta(Number(m.super_meta)) : '—'))),
+    });
+  };
+
   const limiteMin = Math.round((d.cozinha_limite_seg ?? 2400) / 60);
   // SP: cozinha com entregas, balcão e salão; sem "aguardando entregador"; erros num cartão só.
   const cozinhaTodos = Boolean(d.cozinha_todos_os_tipos);
@@ -241,6 +262,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : quaisCozinha,
         cozinhaTodos ? 'entregas, balcão e salão' : 'só entregas'),
       ...(r.errosUnificado ? [cardErros(null)] : [cardErros('atendimento'), cardErros('cozinha')]),
+      r.burgers.meta && cardBurgers(),
       cardCmv, cardNotas, cardNutri)),
   );
 }
