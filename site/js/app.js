@@ -144,6 +144,16 @@ function abasDe(ctx) {
   return abas;
 }
 
+// "Ver como" (só o dono; dono, 25/10/2026): mostra o sistema como um funcionário de Cozinha, Atendimento
+// ou Produção vê, com os dados reais. Só muda o que a tela mostra; o login continua sendo o do dono.
+const CHAVE_VER_COMO = 'qc_ver_como';
+function lerVerComo() {
+  try { const v = sessionStorage.getItem(CHAVE_VER_COMO); return ['cozinha', 'atendimento', 'producao'].includes(v) ? v : null; } catch { return null; }
+}
+function salvarVerComo(v) {
+  try { if (v) sessionStorage.setItem(CHAVE_VER_COMO, v); else sessionStorage.removeItem(CHAVE_VER_COMO); } catch { /* sem armazenamento */ }
+}
+
 function montarSistema(ctx) {
   const abas = abasDe(ctx);
   const conteudo = el('div', { class: 'conteudo' });
@@ -155,6 +165,11 @@ function montarSistema(ctx) {
     const id = abas.some(([a]) => a === pedida) ? pedida : abas[0][0];
     botoes.forEach((b) => b.classList.toggle('active', b.dataset.aba === id));
     limpar(conteudo);
+    if (ctx.verComo) {
+      conteudo.append(el('p', { class: 'aviso aviso-ver-como' },
+        `Você está vendo o sistema como um funcionário de ${ROTULO_SETOR[ctx.verComo]} (dados reais). `,
+        el('button', { type: 'button', class: 'btn-link', onclick: () => { salvarVerComo(null); iniciar(); } }, 'Voltar para o acesso de dono')));
+    }
     // Funcionário com setor ainda não confirmado: lembrete no topo de qualquer aba.
     if (ctx.papel === 'funcionario' && ctx.vinculo && !ctx.vinculo.setor) {
       conteudo.append(el('p', { class: 'aviso aviso-setor' },
@@ -188,12 +203,21 @@ function montarSistema(ctx) {
     },
   }, mesesDisponiveis().map((m) => el('option', { value: m, selected: m === ctx.mes }, nomeMes(m))));
 
+  // Caixinha "Ver como" no topo, só para quem é dono de verdade.
+  const seletorVerComo = ctx.eu.eh_dono && el('select', {
+    class: 'unidade-select ver-como-select', 'aria-label': 'Ver como',
+    onchange: (e) => { salvarVerComo(e.target.value || null); location.hash = ''; iniciar(); },
+  },
+  el('option', { value: '', selected: !ctx.verComo }, 'Ver como: Dono'),
+  ['cozinha', 'atendimento', 'producao'].map((s) => el('option', { value: s, selected: ctx.verComo === s }, `Ver como: ${ROTULO_SETOR[s]}`)));
+
   limpar(raiz).append(
     el('header', { class: 'brandbar' },
       logo(36),
       el('div', { class: 'bn' }, 'Queijo e Carne', el('small', {}, `${primeiroNome(ctx.eu.nome)} · ${papel}`)),
       el('nav', { class: 'tabs', 'aria-label': 'Abas' }, botoes),
       el('div', { class: 'barra-direita' },
+        seletorVerComo,
         seletor,
         el('div', { class: 'month-badge' }, seletorMes),
         el('button', { class: 'btn-sair', onclick: sair }, 'Sair')),
@@ -238,7 +262,16 @@ async function iniciar() {
     unidadesEquipe: unidades.filter((u) => eu.eh_dono || vinculos.some((v) => v.unidade === u.codigo && v.papel === 'gerente')),
   };
 
-  if (ctx.papel === 'funcionario' && !vinculo.setor && !vinculo.setor_indicado) return telaEscolherSetor(ctx);
+  // Dono vendo como um setor: a tela se comporta como a de um funcionário confirmado daquele setor.
+  const verComo = eu.eh_dono ? lerVerComo() : null;
+  if (verComo) {
+    ctx.verComo = verComo;
+    ctx.papel = 'funcionario';
+    ctx.vinculo = { pessoa_id: eu.id, unidade: unidade.codigo, papel: 'funcionario', setor: verComo, setor_indicado: null, ativo: true };
+    ctx.unidadesEquipe = [];
+  }
+
+  if (ctx.papel === 'funcionario' && !ctx.vinculo.setor && !ctx.vinculo.setor_indicado) return telaEscolherSetor(ctx);
   montarSistema(ctx);
 }
 
