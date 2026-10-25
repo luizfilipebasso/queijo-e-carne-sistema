@@ -170,13 +170,24 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
 
   const nomeQuinzena = (inicio) => (inicio.endsWith('-01') ? '1ª quinzena' : '2ª quinzena');
   const pct0 = (v) => pct(v, 0);
+  // Antes do mês fechar, o cartão já mostra o resultado da média parcial (meta/super meta e o prêmio
+  // equivalente), marcado como parcial, para motivar a equipe (dono, 25/10/2026). O definitivo vale no fechamento.
+  const cmvParcial = !r.cmv.status && Boolean(r.cmv.statusPrevia);
+  const cmvStatus = r.cmv.status ?? r.cmv.statusPrevia;
+  const cmvPremio = r.cmv.status ? r.cmv.premio : r.cmv.premioPrevia;
   const cardCmv = card({
-    titulo: 'CMV', sub: 'média das 2 quinzenas; vale com o mês fechado', publico: PUBLICO[r.cmv.meta?.publico] ?? '—', tom: r.cmv.status, premioValor: r.cmv.premio,
+    titulo: 'CMV', sub: 'média das 2 quinzenas; vale com o mês fechado', publico: PUBLICO[r.cmv.meta?.publico] ?? '—', tom: cmvStatus, premioValor: cmvPremio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, d.mes_fechado ? 'Mês fechado' : 'Média parcial'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, r.cmv.valor !== null ? pct(r.cmv.valor) : '—'),
-        selo(r.cmv.status, r.cmv.valor === null ? 'Sem lançamento' : 'Aguardando fechamento')),
+        cmvParcial
+          ? el('span', { class: `kpi-status ${cmvStatus}` }, `${ROTULO_STATUS[cmvStatus]} (parcial)`)
+          : selo(r.cmv.status, r.cmv.valor === null ? 'Sem lançamento' : 'Aguardando fechamento')),
       el('p', { class: 'ind-meta' }, textoMeta(r.cmv.meta, pct0)),
+      cmvParcial && el('p', { class: 'ind-cost-note' },
+        cmvPremio > 0
+          ? `Pela média parcial, hoje vale + ${reais(cmvPremio, 0)} por pessoa. Fica definitivo quando as duas quinzenas forem lançadas e o mês terminar.`
+          : 'Pela média parcial, hoje ainda não bate a meta. Fica definitivo quando as duas quinzenas forem lançadas e o mês terminar.'),
       el('div', { class: 'ind-detail' },
         r.cmv.quinzenas.length
           ? r.cmv.quinzenas.map((q) => linha(nomeQuinzena(q.inicio), `a partir de ${dataBR(q.inicio)}`, q.cmv_pct !== null ? pct(q.cmv_pct) : '—'))
