@@ -12,8 +12,12 @@ const ROTULO_STATUS = { super: 'Super meta', meta: 'Na meta', fora: 'Fora da met
 // Cada unidade só usa os indicadores com meta valendo no mês (dono, 08/10/2026).
 const PREMIADOS = ['aguardando', 'cozinha', 'cmv', 'ifood', 'keeta', 'f99', 'nutri1', 'nutri2', 'erros', 'erros_cozinha', 'erros_atendimento', 'burgers'];
 const SETORES = ['cozinha', 'atendimento'];
-const ROTULO_SETOR = { cozinha: 'Cozinha', atendimento: 'Atendimento' };
+const ROTULO_SETOR = { cozinha: 'Cozinha', atendimento: 'Atendimento', producao: 'Produção' };
 const metaDe = (metas, chave) => metas[chave.startsWith('nutri') ? 'nutri' : chave];
+// "publico" da meta: 'todos' (= Cozinha e Atendimento) ou lista de setores, ex.: 'cozinha,producao'.
+// A Produção só recebe o que a cita pelo nome: hoje, só a Nutricionista (dono, 25/10/2026).
+const setoresDe = (m) => (!m?.publico ? [] : m.publico === 'todos' ? SETORES : m.publico.split(','));
+const paraSetor = (m, setor) => setoresDe(m).includes(setor);
 
 export function avaliar(m, valor) {
   if (!m || valor === null || valor === undefined || Number.isNaN(valor)) return null;
@@ -88,11 +92,13 @@ export function calcular(d) {
   }
   // Prêmio por pessoa de um setor: indicadores "todos" + o do setor.
   r.premioSetor = (setor, previa = false) => PREMIADOS
-    .filter((k) => ['todos', setor].includes(r[k].meta?.publico))
+    .filter((k) => paraSetor(r[k].meta, setor))
     .reduce((s, k) => s + (previa ? r[k].premioPrevia : r[k].premio), 0);
   // Desconto por pessoa: custo dos erros do setor ÷ pessoas do setor (SP: custo total ÷ pessoas dos dois setores).
   r.errosDe = (setor) => (r.errosUnificado ? r.erros : r[`erros_${setor}`]);
+  // A Produção não entra na divisão dos erros: sem desconto.
   r.descontoSetor = (setor) => {
+    if (setor === 'producao') return 0;
     const x = r.errosDe(setor);
     return x.pessoas > 0 ? x.custo / x.pessoas : 0;
   };
@@ -124,13 +130,14 @@ function linha(rotulo, detalhe, valor, status, pendente, premioValor) {
     recompensa(premioValor));
 }
 
-const PUBLICO = { todos: 'Todos', cozinha: 'Cozinha', atendimento: 'Atendimento' };
+const ROTULO_PUBLICO = { todos: 'Todos', cozinha: 'Cozinha', atendimento: 'Atendimento', producao: 'Produção' };
+const rotuloPublico = (m) => (m?.publico ? m.publico.split(',').map((x) => ROTULO_PUBLICO[x] ?? x).join(' e ') : '—');
 
 function cardTempo(titulo, item, mes, extra, quais = 'só entregas') {
   const m = item.meta;
   const diferenca = item.valor !== null && m ? Math.round(item.valor - m.meta) : null;
   return card({
-    titulo, sub: `${quais}, ${rotuloMes(mes)}, sem fiado`, publico: PUBLICO[m?.publico] ?? '—', tom: item.status, premioValor: item.premio,
+    titulo, sub: `${quais}, ${rotuloMes(mes)}, sem fiado`, publico: rotuloPublico(m), tom: item.status, premioValor: item.premio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, 'Tempo médio'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, item.valor !== null ? mmss(item.valor) : '—'), selo(item.status, 'Sem dados')),
@@ -142,7 +149,7 @@ function cardTempo(titulo, item, mes, extra, quais = 'só entregas') {
   });
 }
 
-// "setor" (funcionário de Cozinha ou Atendimento): mostra só os cartões e o prêmio do próprio setor + os de todos
+// "setor" (funcionário de Cozinha, Atendimento ou Produção): mostra só os cartões e o prêmio do próprio setor + os de todos
 // (dono, 25/10/2026). Sem setor (dono, gerente, setor ainda não informado), mostra tudo.
 export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}) {
   const r = calcular(d);
@@ -150,7 +157,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
 
   // Resumo de prêmios por setor: cartão em toda a largura no topo da grade, já com o desconto dos erros.
   const blocoSetor = (setor) => {
-    const x = r.errosDe(setor);
+    const x = setor === 'producao' ? { custo: 0 } : r.errosDe(setor);
     const bruto = r.premioSetor(setor, previa);
     const desconto = r.descontoSetor(setor);
     const liquido = r.incentivoSetor(setor, previa);
@@ -163,8 +170,8 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
       el('p', { class: 'stat-sub' }, detalhe));
   };
   const resumo = el('div', { class: 'ind-card ind-resumo' },
-    setor ? blocoSetor(setor) : el('div', { class: 'grid-2' }, blocoSetor('cozinha'), blocoSetor('atendimento')),
-    previa && el('p', { class: 'aviso ind-previa' },
+    setor ? blocoSetor(setor) : el('div', { class: 'grid-3' }, blocoSetor('cozinha'), blocoSetor('atendimento'), blocoSetor('producao')),
+    previa && (!setor || paraSetor(r.cmv.meta, setor)) && el('p', { class: 'aviso ind-previa' },
       'Prévia: o mês ainda não fechou. O CMV entra no cálculo quando as duas quinzenas estiverem lançadas e o mês terminar.'),
   );
 
@@ -176,7 +183,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
   const cmvStatus = r.cmv.status ?? r.cmv.statusPrevia;
   const cmvPremio = r.cmv.status ? r.cmv.premio : r.cmv.premioPrevia;
   const cardCmv = card({
-    titulo: 'CMV', sub: 'média das 2 quinzenas; vale com o mês fechado', publico: PUBLICO[r.cmv.meta?.publico] ?? '—', tom: cmvStatus, premioValor: cmvPremio,
+    titulo: 'CMV', sub: 'média das 2 quinzenas; vale com o mês fechado', publico: rotuloPublico(r.cmv.meta), tom: cmvStatus, premioValor: cmvPremio,
     corpo: el('div', {},
       el('p', { class: 'ind-label' }, d.mes_fechado ? 'Mês fechado' : 'Média parcial'),
       el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, r.cmv.valor !== null ? pct(r.cmv.valor) : '—'),
@@ -198,7 +205,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
   // Plataformas com meta valendo no mês: SM só iFood (99food ainda não vale); SP iFood, Keeta e 99food (dono, 08/10/2026).
   const plataformas = [['iFood', r.ifood], ['Keeta', r.keeta], ['99food', r.f99]].filter(([, p]) => p.meta);
   const cardNotas = card({
-    titulo: plataformas.length > 1 ? 'Notas das plataformas' : 'Nota do iFood', sub: 'média das quinzenas do mês', publico: PUBLICO[r.ifood.meta?.publico] ?? '—',
+    titulo: plataformas.length > 1 ? 'Notas das plataformas' : 'Nota do iFood', sub: 'média das quinzenas do mês', publico: rotuloPublico(r.ifood.meta),
     tom: plataformas.some(([, p]) => p.status === 'fora') ? 'fora' : null, premioValor: plataformas.reduce((s, [, p]) => s + p.premio, 0),
     atingido: plataformas.every(([, p]) => p.premio > 0),
     corpo: el('div', {},
@@ -208,7 +215,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
   });
 
   const cardNutri = card({
-    titulo: 'Relatórios da Nutricionista', sub: '2 visitas por mês, cada uma com sua meta', publico: PUBLICO[r.nutri1.meta?.publico] ?? '—',
+    titulo: 'Relatórios da Nutricionista', sub: '2 visitas por mês, cada uma com sua meta', publico: rotuloPublico(r.nutri1.meta),
     tom: [r.nutri1.status, r.nutri2.status].includes('fora') ? 'fora' : null, premioValor: r.nutri1.premio + r.nutri2.premio,
     atingido: r.nutri1.premio > 0 && r.nutri2.premio > 0,
     corpo: el('div', {},
@@ -225,7 +232,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
     return card({
       titulo: setor ? `Erros ${ROTULO_SETOR[setor].toLowerCase()}` : 'Erros',
       sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`,
-      publico: PUBLICO[e.meta?.publico] ?? '—', tom: e.status, premioValor: e.premio,
+      publico: rotuloPublico(e.meta), tom: e.status, premioValor: e.premio,
       corpo: el('div', {},
         el('p', { class: 'ind-label' }, 'Percentual de erros'),
         el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, e.valor !== null ? pct(e.valor, 2) : '—'), selo(e.status, 'Sem lançamento')),
@@ -268,7 +275,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
     return card({
       titulo: 'Burgers vendidos',
       sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`,
-      publico: PUBLICO[m?.publico] ?? '—', tom: b.status, premioValor: b.premio,
+      publico: rotuloPublico(m), tom: b.status, premioValor: b.premio,
       corpo: el('div', {},
         el('p', { class: 'ind-label' }, 'Avulsos + dentro de combos'),
         el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, b.valor !== null ? inteiroBR(b.valor) : '—'), selo(b.status, 'Sem dados')),
@@ -286,7 +293,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
   const quaisCozinha = cozinhaTodos ? 'pedidos do mês' : 'entregas do mês';
   // A seção em si não é um cartão (DESIGN.md); cada indicador é.
   // Cartão visível para quem está vendo: indicador de todos, do próprio setor, ou sem setor definido (vê tudo).
-  const ve = (m) => !setor || !m || ['todos', setor].includes(m.publico);
+  const ve = (m) => !setor || !m || paraSetor(m, setor);
   conteudo.append(el('section', { class: 'sec-kpis' },
     cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
     el('div', { class: 'ind-grid' },
@@ -296,9 +303,9 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
       ve(r.cozinha.meta) && cardTempo(cozinhaTodos ? 'Tempo de preparo' : 'Tempo de Produção na Cozinha', r.cozinha, d.mes,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : quaisCozinha,
         cozinhaTodos ? 'entregas, balcão e salão' : 'só entregas'),
-      ...(r.errosUnificado ? [cardErros(null)] : ['atendimento', 'cozinha'].filter((x) => ve(r[`erros_${x}`].meta)).map(cardErros)),
-      r.burgers.meta && cardBurgers(),
-      cardCmv, cardNotas, cardNutri)),
+      ...(r.errosUnificado ? [ve(r.erros.meta) && cardErros(null)] : ['atendimento', 'cozinha'].filter((x) => ve(r[`erros_${x}`].meta)).map(cardErros)),
+      r.burgers.meta && ve(r.burgers.meta) && cardBurgers(),
+      ve(r.cmv.meta) && cardCmv, ve(r.ifood.meta) && cardNotas, ve(r.nutri1.meta) && cardNutri)),
   );
 }
 
@@ -310,5 +317,5 @@ export async function telaIndicadores(conteudo, ctx) {
     return;
   }
   const setor = ctx.papel === 'funcionario' ? (ctx.vinculo?.setor ?? ctx.vinculo?.setor_indicado ?? null) : null;
-  renderizarIndicadores(conteudo, data, { titulo: `Metas e avaliações · ${ctx.unidade.nome}`, setor: ['cozinha', 'atendimento'].includes(setor) ? setor : null });
+  renderizarIndicadores(conteudo, data, { titulo: `Metas e avaliações · ${ctx.unidade.nome}`, setor: ['cozinha', 'atendimento', 'producao'].includes(setor) ? setor : null });
 }

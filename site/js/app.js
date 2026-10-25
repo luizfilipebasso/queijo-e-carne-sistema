@@ -132,10 +132,7 @@ function telaEscolherSetor(ctx) {
 function abasDe(ctx) {
   const comparar = ctx.unidadesEquipe.length > 1 ? [['comparar', 'Comparar']] : [];
   // Funcionário: Desempenho (com os prêmios no topo), Etiquetas e Links importantes (só dele). "Meu incentivo" saiu (dono, 08/10/2026).
-  // Produção (dono, 08/10/2026): não recebe incentivo, então não vê Desempenho. Vale também enquanto o setor indicado aguarda confirmação.
-  if (ctx.papel === 'funcionario' && (ctx.vinculo?.setor ?? ctx.vinculo?.setor_indicado) === 'producao') {
-    return [['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
-  }
+  // Produção também vê Desempenho desde 25/10/2026 (o prêmio dela é só o da Nutricionista).
   if (ctx.papel === 'funcionario') return [['indicadores', 'Desempenho'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
   // Etiquetas: liberada também para dono e gerente (dono, 08/10/2026).
   // Links importantes também para dono e gerente: são eles que enviam os PDFs (dono, 15/10/2026).
