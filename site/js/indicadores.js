@@ -31,6 +31,20 @@ export function premio(m, status) {
   return status === 'super' ? Number(m.premio_super) : status === 'meta' ? Number(m.premio_meta) : 0;
 }
 
+// Projeção de burgers para o fim do mês (dono, 25/10/2026): média por dia até o último dia com vendas × dias do mês.
+// Só no mês em andamento; conta simples, sem IA.
+const DIA_PROJECAO_VALE = 15;
+function projetarBurgers(d, valor) {
+  if (d.mes_encerrado || !valor || !d.atualizado_ate) return null;
+  const dia = Number(d.atualizado_ate.slice(8, 10));
+  const [ano, mes] = d.mes.split('-').map(Number);
+  const diasMes = new Date(ano, mes, 0).getDate();
+  if (dia <= 0 || dia >= diasMes) return null;
+  const porDia = valor / dia;
+  return { dia, porDia, total: Math.round(porDia * diasMes) };
+}
+const ORDEM_STATUS = { fora: 0, meta: 1, super: 2 };
+
 const media = (lista) => (lista.length ? lista.reduce((s, x) => s + x, 0) / lista.length : null);
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 const fmt = (n, casas) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
@@ -89,6 +103,16 @@ export function calcular(d) {
     item.statusPrevia = avaliar(item.meta, item.valor);
     item.premio = premio(item.meta, item.status);
     item.premioPrevia = premio(item.meta, item.statusPrevia);
+  }
+  // Burgers: a partir do dia 15, se a projeção do mês já bate a meta ou a super meta, a prévia mostra
+  // esse resultado e o prêmio dele, para a equipe ter ideia do que vai ganhar (dono, 25/10/2026).
+  const b = r.burgers;
+  b.projecao = projetarBurgers(d, b.valor);
+  const stProj = b.projecao && b.projecao.dia >= DIA_PROJECAO_VALE ? avaliar(b.meta, b.projecao.total) : null;
+  if (stProj && stProj !== 'fora' && ORDEM_STATUS[stProj] > ORDEM_STATUS[b.statusPrevia ?? 'fora']) {
+    b.statusProjecao = stProj;
+    b.statusPrevia = stProj;
+    b.premioPrevia = premio(b.meta, stProj);
   }
   // Prêmio por pessoa de um setor: indicadores "todos" + o do setor.
   r.premioSetor = (setor, previa = false) => PREMIADOS
@@ -253,32 +277,30 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
     const b = r.burgers;
     const m = b.meta;
     const falta = (alvo) => (b.valor === null ? '—' : b.valor >= alvo ? 'batida' : inteiroBR(alvo - b.valor));
-    // Projeção para o fim do mês (dono, 25/10/2026): média por dia até o último dia com vendas × dias do mês.
-    // Só no mês em andamento; conta simples, sem IA.
     let projecao = null;
-    if (!d.mes_encerrado && b.valor && d.atualizado_ate) {
-      const diasPassados = Number(d.atualizado_ate.slice(8, 10));
-      const [ano, mes] = d.mes.split('-').map(Number);
-      const diasMes = new Date(ano, mes, 0).getDate();
-      if (diasPassados > 0 && diasPassados < diasMes) {
-        const porDia = b.valor / diasPassados;
-        const total = Math.round(porDia * diasMes);
-        const resultado = !m ? ''
-          : total >= Number(m.super_meta) ? ', o que bate a super meta.'
-          : total >= Number(m.meta) ? ', o que bate a meta.'
-          : `; faltariam ${inteiroBR(Number(m.meta) - total)} para a meta.`;
-        projecao = el('p', { class: 'ind-projecao' },
-          `Pela média diária (≈ ${inteiroBR(porDia)} por dia), até o fim do mês serão cerca de `,
-          el('strong', {}, `${inteiroBR(total)} burgers`), resultado || '.');
-      }
+    if (b.projecao) {
+      const { porDia, total } = b.projecao;
+      const resultado = !m ? ''
+        : total >= Number(m.super_meta) ? ', o que bate a super meta.'
+        : total >= Number(m.meta) ? ', o que bate a meta.'
+        : `; faltariam ${inteiroBR(Number(m.meta) - total)} para a meta.`;
+      projecao = el('p', { class: 'ind-projecao' },
+        `Pela média diária (≈ ${inteiroBR(porDia)} por dia), até o fim do mês serão cerca de `,
+        el('strong', {}, `${inteiroBR(total)} burgers`), resultado || '.',
+        b.statusProjecao && ` Se continuar assim, vale + ${reais(b.premioPrevia, 0)} por pessoa (prévia; o definitivo é o total do mês).`);
     }
+    // Resultado pela projeção (a partir do dia 15): mesmo jeito do CMV parcial.
+    const tom = b.statusProjecao ?? b.status;
     return card({
       titulo: 'Burgers vendidos',
       sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`,
-      publico: rotuloPublico(m), tom: b.status, premioValor: b.premio,
+      publico: rotuloPublico(m), tom, premioValor: b.statusProjecao ? b.premioPrevia : b.premio,
       corpo: el('div', {},
         el('p', { class: 'ind-label' }, 'Avulsos + dentro de combos'),
-        el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, b.valor !== null ? inteiroBR(b.valor) : '—'), selo(b.status, 'Sem dados')),
+        el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, b.valor !== null ? inteiroBR(b.valor) : '—'),
+          b.statusProjecao
+            ? el('span', { class: `kpi-status ${tom}` }, `${ROTULO_STATUS[tom]} (projeção)`)
+            : selo(b.status, 'Sem dados')),
         el('p', { class: 'ind-meta' }, textoMeta(m, inteiroBR)),
         projecao,
         el('div', { class: 'ind-detail' },
