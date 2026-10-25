@@ -86,7 +86,10 @@ export async function telaPainel(conteudo, ctx) {
   const secFaturamento = el('section', { class: 'sec-faturamento' },
     cabecalho(`Faturamento acumulado · ${ctx.unidade.nome}`, p.atualizado_ate ? `até ${dataBR(p.atualizado_ate)}` : 'sem vendas ainda', 'dinheiro'),
     el('div', { class: 'hero-wrap' }, el('p', { class: 'hero-value' }, el('sup', {}, 'R$'), Math.round(fat).toLocaleString('pt-BR'))),
-    el('p', { class: 'pedidos-mes' }, p.pedidos ? `${inteiro(p.pedidos)} pedidos no mês` : 'Sem vendas no mês ainda.'),
+    // Pedidos e total de burgers do mês (avulsos + dentro de combos; dono, 25/10/2026).
+    el('p', { class: 'pedidos-mes' }, p.pedidos
+      ? `${inteiro(p.pedidos)} pedidos${p.burgers_vendidos ? ` · ${inteiro(p.burgers_vendidos)} burgers` : ''} no mês`
+      : 'Sem vendas no mês ainda.'),
     // Últimos 3 dias com vendas no mês: data, dia da semana e faturamento.
     (p.ultimos_dias ?? []).length > 0 && el('div', { class: 'dias-recentes' },
       p.ultimos_dias.map((dia) => el('div', { class: 'dia-recente' },
