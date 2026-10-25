@@ -246,6 +246,25 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
     const b = r.burgers;
     const m = b.meta;
     const falta = (alvo) => (b.valor === null ? '—' : b.valor >= alvo ? 'batida' : inteiroBR(alvo - b.valor));
+    // Projeção para o fim do mês (dono, 25/10/2026): média por dia até o último dia com vendas × dias do mês.
+    // Só no mês em andamento; conta simples, sem IA.
+    let projecao = null;
+    if (!d.mes_encerrado && b.valor && d.atualizado_ate) {
+      const diasPassados = Number(d.atualizado_ate.slice(8, 10));
+      const [ano, mes] = d.mes.split('-').map(Number);
+      const diasMes = new Date(ano, mes, 0).getDate();
+      if (diasPassados > 0 && diasPassados < diasMes) {
+        const porDia = b.valor / diasPassados;
+        const total = Math.round(porDia * diasMes);
+        const resultado = !m ? ''
+          : total >= Number(m.super_meta) ? ', o que bate a super meta.'
+          : total >= Number(m.meta) ? ', o que bate a meta.'
+          : `; faltariam ${inteiroBR(Number(m.meta) - total)} para a meta.`;
+        projecao = el('p', { class: 'ind-projecao' },
+          `Pela média diária (≈ ${inteiroBR(porDia)} por dia), até o fim do mês serão cerca de `,
+          el('strong', {}, `${inteiroBR(total)} burgers`), resultado || '.');
+      }
+    }
     return card({
       titulo: 'Burgers vendidos',
       sub: rotuloMes(d.mes) === 'mês vigente' ? 'acumulado do mês vigente' : `acumulado de ${rotuloMes(d.mes)}`,
@@ -254,6 +273,7 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
         el('p', { class: 'ind-label' }, 'Avulsos + dentro de combos'),
         el('div', { class: 'ind-valuerow' }, el('p', { class: 'ind-value' }, b.valor !== null ? inteiroBR(b.valor) : '—'), selo(b.status, 'Sem dados')),
         el('p', { class: 'ind-meta' }, textoMeta(m, inteiroBR)),
+        projecao,
         el('div', { class: 'ind-detail' },
           linha('Faltam para a meta', m ? `meta de ${inteiroBR(m.meta)}` : '', m ? falta(Number(m.meta)) : '—'),
           linha('Faltam para a super meta', m ? `super meta de ${inteiroBR(m.super_meta)}` : '', m ? falta(Number(m.super_meta)) : '—'))),
@@ -271,9 +291,9 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
     cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
     el('div', { class: 'ind-grid' },
       resumo,
-      r.aguardando.meta && ve(r.aguardando.meta) && cardTempo('Aguardando entregador', r.aguardando, d.mes,
+      r.aguardando.meta && ve(r.aguardando.meta) && cardTempo('Tempo Aguardando Entregador', r.aguardando, d.mes,
         r.aguardando.excluidos ? `${r.aguardando.excluidos} pedido(s) acima de ${Math.round(r.aguardando.limiteSeg / 60)} min fora da média` : 'entregas do mês'),
-      ve(r.cozinha.meta) && cardTempo(cozinhaTodos ? 'Tempo de preparo' : 'Cozinha (entrega)', r.cozinha, d.mes,
+      ve(r.cozinha.meta) && cardTempo(cozinhaTodos ? 'Tempo de preparo' : 'Tempo de Produção na Cozinha', r.cozinha, d.mes,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : quaisCozinha,
         cozinhaTodos ? 'entregas, balcão e salão' : 'só entregas'),
       ...(r.errosUnificado ? [cardErros(null)] : ['atendimento', 'cozinha'].filter((x) => ve(r[`erros_${x}`].meta)).map(cardErros)),

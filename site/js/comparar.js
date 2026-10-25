@@ -17,7 +17,7 @@ const LINHAS = [
   ['Ticket Salão', (x) => x.ticket_salao, (v) => reais(v)],
   ['Ticket Delivery', (x) => x.ticket_delivery, (v) => reais(v), 'ticket_delivery'],
   ['Tempo de cozinha', (x) => x.seg_cozinha, mmss, 'cozinha'],
-  ['Aguardando entregador', (x) => x.seg_aguardando, mmss, 'aguardando'],
+  ['Tempo aguardando entregador', (x) => x.seg_aguardando, mmss, 'aguardando'],
   ['CMV (média do mês)', (x) => x.cmv, (v) => pct(v), 'cmv'],
   // Erros: total de cada unidade (em SM, Cozinha + Atendimento somados; dono, 08/10/2026). Aparece mesmo sem meta "erros".
   ['Erros', (x) => x.erros_pct, (v) => pct(v, 2), 'erros', true],
