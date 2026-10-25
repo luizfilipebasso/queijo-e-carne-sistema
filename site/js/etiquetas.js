@@ -8,7 +8,7 @@ import { Impressora, canvasParaLinhas, suportaBluetooth, LARGURA_PX } from './ni
 const ALTURA_PX = 240; // 30 mm a 203 dpi
 // Fonte só do desenho impresso na etiqueta (a tela do sistema usa Instrument Sans).
 const FONTE = '"Source Serif 4", Georgia, serif';
-const CATEGORIAS = ['Padaria', 'Proteínas', 'Hortifruti', 'Laticínios', 'Doces', 'Industrializados', 'Produção própria'];
+const CATEGORIAS = ['Padaria', 'Proteínas', 'Hortifruti', 'Laticínios', 'Doces', 'Industrializados', 'Produção própria', 'Outros'];
 const ROTULO_METODO = { congelado: 'Congelado', refrigerado: 'Refrigerado', ambiente: 'Temperatura ambiente' };
 const MAX_COPIAS = 20;
 
@@ -58,6 +58,7 @@ function ajustarTamanho(c, texto, larguraMax, inicial, peso, minimo = 14) {
   return tamanho;
 }
 
+// validade null = item sem validade (categoria "Outros"): sai só o nome, a data e o responsável.
 function desenharEtiqueta(canvas, { insumo, manipulacao, validade, metodo, responsavel }) {
   canvas.width = LARGURA_PX;
   canvas.height = ALTURA_PX;
@@ -79,7 +80,7 @@ function desenharEtiqueta(canvas, { insumo, manipulacao, validade, metodo, respo
   c.beginPath(); c.moveTo(pad, 50); c.lineTo(W - pad, 50); c.stroke();
 
   c.font = `400 14px ${FONTE}`;
-  c.fillText('Manipulação', pad, 74);
+  c.fillText(validade === null ? 'Data' : 'Manipulação', pad, 74);
   c.font = `700 30px ${FONTE}`;
   c.fillText(manipulacao, pad, 116);
   if (metodo) {
@@ -87,14 +88,16 @@ function desenharEtiqueta(canvas, { insumo, manipulacao, validade, metodo, respo
     c.fillText(metodo, pad, 132);
   }
 
-  const direita = W / 2 + 14;
-  c.font = `400 14px ${FONTE}`;
-  c.fillText('Validade', direita, 74);
-  c.font = `700 34px ${FONTE}`;
-  c.fillText(validade, direita, 120);
-  const caixa = c.measureText(validade).width + 16;
-  c.lineWidth = 2;
-  c.strokeRect(direita - 8, 88, caixa, 42);
+  if (validade !== null) {
+    const direita = W / 2 + 14;
+    c.font = `400 14px ${FONTE}`;
+    c.fillText('Validade', direita, 74);
+    c.font = `700 34px ${FONTE}`;
+    c.fillText(validade, direita, 120);
+    const caixa = c.measureText(validade).width + 16;
+    c.lineWidth = 2;
+    c.strokeRect(direita - 8, 88, caixa, 42);
+  }
 
   c.lineWidth = 1.5;
   c.beginPath(); c.moveTo(pad, 146); c.lineTo(W - pad, 146); c.stroke();
@@ -178,10 +181,11 @@ export function telaEtiquetas(conteudo, ctx) {
     const dadosDaEtiqueta = () => {
       const ins = insumoAtual();
       const met = ins?.metodos.find((m) => m.metodo === estado.metodo) ?? null;
+      const semValidade = Boolean(ins) && !ins.metodos.length;
       return {
-        ins, met,
+        ins, met, semValidade,
         manip: estado.manipulacao,
-        validade: met ? somarDias(estado.manipulacao, met.dias) : estado.manipulacao,
+        validade: semValidade ? null : met ? somarDias(estado.manipulacao, met.dias) : estado.manipulacao,
       };
     };
 
@@ -190,7 +194,7 @@ export function telaEtiquetas(conteudo, ctx) {
       desenharEtiqueta(canvas, {
         insumo: ins?.nome ?? '',
         manipulacao: textoManipulacao(manip),
-        validade: textoValidade(validade),
+        validade: validade === null ? null : textoValidade(validade),
         metodo: met ? ROTULO_METODO[met.metodo] : '',
         responsavel: estado.responsavel,
       });
@@ -198,7 +202,9 @@ export function telaEtiquetas(conteudo, ctx) {
 
     const mostrarMetodos = () => {
       const ins = insumoAtual();
-      listaMetodos.replaceChildren(...(ins
+      listaMetodos.replaceChildren(...(ins && !ins.metodos.length
+        ? [el('p', { class: 'et-dica' }, 'Sem validade: a etiqueta sai com a data e o responsável.')]
+        : ins
         ? ins.metodos.map((m) => el('button', {
           type: 'button', class: 'et-chip' + (m.metodo === estado.metodo ? ' ativo' : ''), 'aria-pressed': String(m.metodo === estado.metodo),
           onclick: () => { estado.metodo = m.metodo; mostrarMetodos(); previa(); },
@@ -220,7 +226,7 @@ export function telaEtiquetas(conteudo, ctx) {
           type: 'button', class: 'et-chip' + (i.id === estado.insumoId ? ' ativo' : ''), 'aria-pressed': String(i.id === estado.insumoId),
           onclick: () => {
             estado.insumoId = i.id;
-            estado.metodo = i.metodos[0].metodo;
+            estado.metodo = i.metodos[0]?.metodo ?? null;
             mostrarInsumos(); mostrarMetodos(); previa();
           },
         }, i.nome))))));
@@ -246,8 +252,8 @@ export function telaEtiquetas(conteudo, ctx) {
     });
 
     botaoImprimir.addEventListener('click', async () => {
-      const { ins, met, manip, validade } = dadosDaEtiqueta();
-      if (!ins || !met) return avisar('Escolha o insumo e a forma de armazenamento.', 'erro');
+      const { ins, met, semValidade, manip, validade } = dadosDaEtiqueta();
+      if (!ins || (!met && !semValidade)) return avisar('Escolha o insumo e a forma de armazenamento.', 'erro');
       if (Number.isNaN(manip.getTime())) return avisar('Informe a data de manipulação.', 'erro');
       botaoImprimir.disabled = true;
       try {
@@ -260,8 +266,8 @@ export function telaEtiquetas(conteudo, ctx) {
         await impressora.imprimir(canvasParaLinhas(canvas), estado.copias, (t) => { situacao.textContent = t; });
         situacao.textContent = `Etiqueta enviada (${estado.copias}x).`;
         const { error } = await supabase.from('etiqueta_historico').insert({
-          unidade, insumo: ins.nome, metodo: met.metodo,
-          manipulado_em: manip.toISOString(), validade: paraIsoData(validade),
+          unidade, insumo: ins.nome, metodo: met?.metodo ?? null,
+          manipulado_em: manip.toISOString(), validade: validade === null ? null : paraIsoData(validade),
           responsavel: estado.responsavel, copias: estado.copias,
         });
         if (error) avisar('Imprimiu, mas não foi possível registrar no histórico: ' + error.message, 'erro');
@@ -318,9 +324,10 @@ export function telaEtiquetas(conteudo, ctx) {
       estado.historico.length
         ? estado.historico.map((h) => el('div', { class: 'pessoa-row' },
           el('div', { class: 'pessoa-info' },
-            el('div', { class: 'pessoa-nome' }, `${h.insumo} `, el('span', { class: 'tag-inline' }, ROTULO_METODO[h.metodo])),
-            el('div', { class: 'pessoa-meta' },
-              `Manip. ${textoManipulacao(new Date(h.manipulado_em))} · Val. ${textoValidade(new Date(`${h.validade}T12:00:00`))} · ${h.responsavel} · ${h.copias}x`)),
+            el('div', { class: 'pessoa-nome' }, `${h.insumo} `, h.metodo && el('span', { class: 'tag-inline' }, ROTULO_METODO[h.metodo])),
+            el('div', { class: 'pessoa-meta' }, h.validade
+              ? `Manip. ${textoManipulacao(new Date(h.manipulado_em))} · Val. ${textoValidade(new Date(`${h.validade}T12:00:00`))} · ${h.responsavel} · ${h.copias}x`
+              : `Data ${textoManipulacao(new Date(h.manipulado_em))} · ${h.responsavel} · ${h.copias}x`)),
           el('span', { class: 'et-quando' }, textoManipulacao(new Date(h.criado_em)))))
         : el('p', { class: 'et-dica' }, 'Nenhuma etiqueta impressa ainda.'),
     ));
