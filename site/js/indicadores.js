@@ -142,7 +142,9 @@ function cardTempo(titulo, item, mes, extra, quais = 'só entregas') {
   });
 }
 
-export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
+// "setor" (funcionário de Cozinha ou Atendimento): mostra só os cartões e o prêmio do próprio setor + os de todos
+// (dono, 25/10/2026). Sem setor (dono, gerente, setor ainda não informado), mostra tudo.
+export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}) {
   const r = calcular(d);
   const previa = !d.mes_fechado;
 
@@ -161,7 +163,7 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
       el('p', { class: 'stat-sub' }, detalhe));
   };
   const resumo = el('div', { class: 'ind-card ind-resumo' },
-    el('div', { class: 'grid-2' }, blocoSetor('cozinha'), blocoSetor('atendimento')),
+    setor ? blocoSetor(setor) : el('div', { class: 'grid-2' }, blocoSetor('cozinha'), blocoSetor('atendimento')),
     previa && el('p', { class: 'aviso ind-previa' },
       'Prévia: o mês ainda não fechou. O CMV entra no cálculo quando as duas quinzenas estiverem lançadas e o mês terminar.'),
   );
@@ -252,16 +254,18 @@ export function renderizarIndicadores(conteudo, d, { titulo } = {}) {
   const cozinhaTodos = Boolean(d.cozinha_todos_os_tipos);
   const quaisCozinha = cozinhaTodos ? 'pedidos do mês' : 'entregas do mês';
   // A seção em si não é um cartão (DESIGN.md); cada indicador é.
+  // Cartão visível para quem está vendo: indicador de todos, do próprio setor, ou sem setor definido (vê tudo).
+  const ve = (m) => !setor || !m || ['todos', setor].includes(m.publico);
   conteudo.append(el('section', { class: 'sec-kpis' },
     cabecalho(titulo ?? 'Metas e avaliações', d.atualizado_ate ? `vendas até ${dataBR(d.atualizado_ate)}` : 'sem vendas ainda', 'alvo'),
     el('div', { class: 'ind-grid' },
       resumo,
-      r.aguardando.meta && cardTempo('Aguardando entregador', r.aguardando, d.mes,
+      r.aguardando.meta && ve(r.aguardando.meta) && cardTempo('Aguardando entregador', r.aguardando, d.mes,
         r.aguardando.excluidos ? `${r.aguardando.excluidos} pedido(s) acima de ${Math.round(r.aguardando.limiteSeg / 60)} min fora da média` : 'entregas do mês'),
-      cardTempo(cozinhaTodos ? 'Tempo de preparo' : 'Cozinha (entrega)', r.cozinha, d.mes,
+      ve(r.cozinha.meta) && cardTempo(cozinhaTodos ? 'Tempo de preparo' : 'Cozinha (entrega)', r.cozinha, d.mes,
         r.cozinha.excluidos ? `${r.cozinha.excluidos} pedido(s) acima de ${limiteMin} min fora da média` : quaisCozinha,
         cozinhaTodos ? 'entregas, balcão e salão' : 'só entregas'),
-      ...(r.errosUnificado ? [cardErros(null)] : [cardErros('atendimento'), cardErros('cozinha')]),
+      ...(r.errosUnificado ? [cardErros(null)] : ['atendimento', 'cozinha'].filter((x) => ve(r[`erros_${x}`].meta)).map(cardErros)),
       r.burgers.meta && cardBurgers(),
       cardCmv, cardNotas, cardNutri)),
   );
@@ -274,5 +278,6 @@ export async function telaIndicadores(conteudo, ctx) {
     conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar o Desempenho: ' + error.message)));
     return;
   }
-  renderizarIndicadores(conteudo, data, { titulo: `Metas e avaliações · ${ctx.unidade.nome}` });
+  const setor = ctx.papel === 'funcionario' ? (ctx.vinculo?.setor ?? ctx.vinculo?.setor_indicado ?? null) : null;
+  renderizarIndicadores(conteudo, data, { titulo: `Metas e avaliações · ${ctx.unidade.nome}`, setor: ['cozinha', 'atendimento'].includes(setor) ? setor : null });
 }
