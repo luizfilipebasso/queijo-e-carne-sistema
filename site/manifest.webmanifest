@@ -1,0 +1,14 @@
+{
+  "name": "Queijo e Carne — Sistema",
+  "short_name": "Queijo e Carne",
+  "description": "Indicadores, incentivos e etiquetas da Queijo e Carne.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#231710",
+  "theme_color": "#231710",
+  "icons": [
+    { "src": "img/logo.png", "sizes": "335x335", "type": "image/png", "purpose": "any" }
+  ]
+}

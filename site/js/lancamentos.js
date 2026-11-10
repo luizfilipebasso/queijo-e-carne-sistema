@@ -150,6 +150,9 @@ function formulario({ titulo, descricao, unidade, tabela, conflito, chaveDe, ext
 
 export async function telaLancamentos(conteudo, ctx) {
   const unidade = ctx.unidade.codigo;
+  // Import na hora de usar: avisos.js importa este arquivo (dataBR).
+  const avisos = await (await import('./avisos.js')).blocoAvisos(ctx);
+  if (avisos) conteudo.append(avisos);
   // Os campos seguem as metas que valem hoje na unidade (dono, 08/10/2026):
   // SM: erros por setor e só a nota do iFood; SP: erros num campo só e notas de iFood, Keeta e 99food.
   const { data: metasHoje } = await supabase.from('metas').select('indicador')

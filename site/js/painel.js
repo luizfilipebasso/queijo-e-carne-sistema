@@ -4,6 +4,7 @@ import { el } from './util.js';
 import { dataBR } from './lancamentos.js';
 import { rotuloMes } from './meses.js';
 import { icone } from './icones.js';
+import { blocoAvisos } from './avisos.js';
 
 // Cores dos canais: tokens do DESIGN.md (definidos em estilo.css).
 export const CANAIS = {
@@ -69,16 +70,18 @@ function blocoCombo(titulo, linhas, total) {
 export async function telaPainel(conteudo, ctx) {
   const mes = ctx.mes;
   const u = ctx.unidade.codigo;
-  const [{ data: p, error }, { data: cmv }] = await Promise.all([
+  const [{ data: p, error }, { data: cmv }, avisos] = await Promise.all([
     supabase.rpc('painel_mes', { p_unidade: u, p_mes: mes }),
     // Última quinzena lançada dentro do mês escolhido (as quinzenas começam no dia 1 ou 16).
     supabase.from('cmv_quinzena').select('*').eq('unidade', u).in('inicio', [mes, mes.slice(0, 8) + '16'])
       .order('inicio', { ascending: false }).limit(1).maybeSingle(),
+    blocoAvisos(ctx),
   ]);
   if (error) {
     conteudo.append(el('section', {}, el('p', { class: 'aviso aviso-erro' }, 'Erro ao carregar o Painel: ' + error.message)));
     return;
   }
+  if (avisos) conteudo.append(avisos);
 
   const fat = Number(p.faturamento);
   const canais = p.canais.map((c) => ({ ...c, rotulo: CANAIS[c.canal]?.[0] ?? c.canal, cor: CANAIS[c.canal]?.[1] ?? CANAIS.outro[1] }));
