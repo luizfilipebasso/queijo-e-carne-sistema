@@ -1,7 +1,7 @@
 // Tela Indicadores (todos): metas, super metas e prêmios do mês, da unidade selecionada.
 // As metas e os prêmios vêm do banco (tabela metas, por unidade); veja CLAUDE.md.
 import { supabase } from './supabase.js';
-import { el } from './util.js';
+import { el, limpar, avisar } from './util.js';
 import { dataBR } from './lancamentos.js';
 import { rotuloMes } from './meses.js';
 import { pct, reais, cabecalho } from './painel.js';
@@ -175,17 +175,23 @@ function cardTempo(titulo, item, mes, extra, quais = 'só entregas') {
 
 // "setor" (funcionário de Cozinha, Atendimento ou Produção): mostra só os cartões e o prêmio do próprio setor + os de todos
 // (dono, 25/10/2026). Sem setor (dono, gerente, setor ainda não informado), mostra tudo.
-export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}) {
+// "fechamento" (só o dono): { fechar(premios), reabrir() } para os botões de fechar e reabrir o mês.
+export function renderizarIndicadores(conteudo, d, { titulo, setor = null, fechamento = null } = {}) {
   const r = calcular(d);
-  const previa = !d.mes_fechado;
+  // Mês fechado pelo dono (dono, 10/11/2026): os números são o retrato gravado no fechamento, e o prêmio é o gravado.
+  const fechado = d.fechamento ?? null;
+  const previa = !d.mes_fechado && !fechado;
+  const premiosDe = (s) => ({ bruto: r.premioSetor(s, false), desconto: r.descontoSetor(s), liquido: r.incentivoSetor(s, false) });
 
   // Resumo de prêmios por setor: cartão em toda a largura no topo da grade, já com o desconto dos erros.
   const blocoSetor = (setor) => {
     const x = setor === 'producao' ? { custo: 0 } : r.errosDe(setor);
-    const bruto = r.premioSetor(setor, previa);
-    const desconto = r.descontoSetor(setor);
-    const liquido = r.incentivoSetor(setor, previa);
-    const detalhe = x.custo > 0
+    const gravado = fechado?.premios?.[setor];
+    const bruto = gravado ? Number(gravado.bruto) : r.premioSetor(setor, previa);
+    const desconto = gravado ? Number(gravado.desconto) : r.descontoSetor(setor);
+    const liquido = gravado ? Number(gravado.liquido) : r.incentivoSetor(setor, previa);
+    const detalhe = gravado && desconto > 0 ? `${reais(bruto, 0)} em prêmios − ${reais(desconto)} de erros`
+      : x.custo > 0
       ? `${reais(bruto, 0)} em prêmios − ${reais(desconto)} de erros (${reais(x.custo)} ÷ ${x.pessoas} pessoa${x.pessoas === 1 ? '' : 's'})`
       : `${reais(bruto, 0)} em prêmios · sem desconto de erros`;
     return el('div', {},
@@ -195,7 +201,29 @@ export function renderizarIndicadores(conteudo, d, { titulo, setor = null } = {}
   };
   const resumo = el('div', { class: 'ind-card ind-resumo' },
     setor ? blocoSetor(setor) : el('div', { class: 'grid-3' }, blocoSetor('cozinha'), blocoSetor('atendimento'), blocoSetor('producao')),
-    previa && el('p', { class: 'aviso ind-previa' }, 'Prévia: o mês ainda não fechou.'),
+    previa && el('p', { class: 'aviso ind-previa' },
+      d.mes_encerrado ? 'Prévia: o mês terminou, mas ainda não foi fechado pelo dono.' : 'Prévia: o mês ainda não fechou.'),
+    fechado && el('p', { class: 'aviso ind-previa' },
+      `Mês fechado em ${dataBR(fechado.em.slice(0, 10))} por ${fechado.por}. Valores definitivos.`),
+    // Só o dono fecha e reabre. Fechar grava o prêmio final de cada setor e trava os lançamentos do mês.
+    fechamento && !fechado && d.mes_encerrado && el('div', { class: 'ind-fechar' },
+      el('button', {
+        type: 'button', class: 'btn-primary',
+        onclick: () => {
+          const p = Object.fromEntries(['cozinha', 'atendimento', 'producao'].map((s) => [s, premiosDe(s)]));
+          const linhas = Object.entries(p).map(([s, v]) => `${ROTULO_SETOR[s]}: ${reais(v.liquido)} por pessoa`).join('\n');
+          const falta = d.mes_fechado ? '' : '\n\nAtenção: o CMV das duas quinzenas não está lançado; o prêmio do CMV fica R$ 0.';
+          const pergunta = `Fechar ${rotuloMes(d.mes)}?\n\n${linhas}${falta}\n\n`
+            + 'Depois de fechar, ninguém altera os lançamentos deste mês (só você pode reabrir).';
+          if (confirm(pergunta)) fechamento.fechar(p);
+        },
+      }, 'Fechar mês'),
+      el('p', { class: 'stat-sub' }, 'Grava o prêmio final de cada setor e trava os lançamentos deste mês.')),
+    fechamento && fechado && el('div', { class: 'ind-fechar' },
+      el('button', {
+        type: 'button', class: 'btn-sec btn-reabrir',
+        onclick: () => { if (confirm(`Reabrir ${rotuloMes(d.mes)}? Os lançamentos voltam a poder ser alterados e o prêmio volta a ser calculado.`)) fechamento.reabrir(); },
+      }, 'Reabrir mês')),
   );
 
   const nomeQuinzena = (inicio) => (inicio.endsWith('-01') ? '1ª quinzena' : '2ª quinzena');
@@ -338,5 +366,19 @@ export async function telaIndicadores(conteudo, ctx) {
     return;
   }
   const setor = ctx.papel === 'funcionario' ? (ctx.vinculo?.setor ?? ctx.vinculo?.setor_indicado ?? null) : null;
-  renderizarIndicadores(conteudo, data, { titulo: `Metas e avaliações · ${ctx.unidade.nome}`, setor: ['cozinha', 'atendimento', 'producao'].includes(setor) ? setor : null });
+  const acao = async (rpc, params, feito) => {
+    const { error: e } = await supabase.rpc(rpc, { p_unidade: ctx.unidade.codigo, p_mes: mes, ...params });
+    if (e) return avisar(e.message, 'erro');
+    avisar(feito);
+    limpar(conteudo);
+    telaIndicadores(conteudo, ctx);
+  };
+  renderizarIndicadores(conteudo, data, {
+    titulo: `Metas e avaliações · ${ctx.unidade.nome}`,
+    setor: ['cozinha', 'atendimento', 'producao'].includes(setor) ? setor : null,
+    fechamento: ctx.papel === 'dono' ? {
+      fechar: (premios) => acao('fechar_mes', { p_premios: premios }, 'Mês fechado.'),
+      reabrir: () => acao('reabrir_mes', {}, 'Mês reaberto.'),
+    } : null,
+  });
 }

@@ -272,8 +272,49 @@ export async function telaLancamentos(conteudo, ctx) {
   numeroVisita.addEventListener('change', nutri.carregar);
   dataVisita.addEventListener('change', nutri.carregar);
 
+  // Histórico (dono, 10/11/2026): o banco registra cada lançamento incluído, alterado ou apagado, e cada
+  // fechamento ou reabertura de mês. Aqui aparecem os 20 mais recentes da unidade.
+  const historico = el('div', { class: 'alt-lista' });
   conteudo.append(
     el('p', { class: 'aviso lanc-unidade' }, `Lançando na unidade ${ctx.unidade.nome}.`),
-    el('div', { class: 'lanc-grid' }, erros.secao, notas.secao, cmv.secao, nutri.secao));
+    el('div', { class: 'lanc-grid' }, erros.secao, notas.secao, cmv.secao, nutri.secao),
+    el('section', {},
+      el('p', { class: 'section-title' }, 'Histórico de alterações'),
+      el('p', { class: 'section-desc' }, 'Os 20 registros mais recentes desta unidade. Mês fechado pelo dono não aceita alteração.'),
+      historico));
   for (const f of [erros, notas, cmv, nutri]) { f.carregar(); f.carregarRecentes(); }
+  supabase.from('alteracoes').select('*').eq('unidade', unidade).order('em', { ascending: false }).limit(20)
+    .then(({ data }) => historico.replaceChildren(...(data?.length
+      ? data.map(linhaHistorico)
+      : [el('p', { class: 'et-dica' }, 'Nenhuma alteração registrada ainda.')])));
+}
+
+const TABELA_HIST = { erros_diarios: 'Erros do dia', cmv_quinzena: 'CMV', notas_quinzena: 'Notas', nutri_visitas: 'Nutricionista', fechamentos: 'Mês' };
+const CAMPO_HIST = {
+  erros_cozinha: 'erros da Cozinha', erros_atendimento: 'erros do Atendimento', erros_gerais: 'erros',
+  custo_cozinha: 'custo da Cozinha', custo_atendimento: 'custo do Atendimento', custo_geral: 'custo dos erros',
+  estoque_inicial: 'estoque inicial', estoque_final: 'estoque final', cmv_pct: 'CMV %',
+  nota_ifood: 'nota iFood', nota_99food: 'nota 99food', nota_keeta: 'nota Keeta',
+  data_visita: 'data da visita', nota_pct: 'nota %', arquivo: 'relatório (PDF)',
+};
+
+function linhaHistorico(h) {
+  const quando = new Date(h.em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  // referencia = data do lançamento (e "visita N" na nutricionista) ou o mês fechado/reaberto.
+  const [data, ...resto] = h.referencia.split(' ');
+  const ref = h.tabela === 'fechamentos' ? dataBR(data).slice(3) : [dataBR(data), ...resto].join(' ');
+  const valor = (v) => (v === null || v === undefined ? 'vazio' : typeof v === 'number' ? v.toLocaleString('pt-BR')
+    : /^\d{4}-\d{2}-\d{2}$/.test(v) ? dataBR(v) : String(v));
+  let detalhe = '';
+  if (h.operacao === 'alterou') {
+    detalhe = Object.keys(CAMPO_HIST).filter((k) => valor(h.antes?.[k]) !== valor(h.depois?.[k]))
+      .map((k) => `${CAMPO_HIST[k]}: ${valor(h.antes?.[k])} → ${valor(h.depois?.[k])}`).join('; ');
+  } else if (h.tabela !== 'fechamentos') {
+    const linha = h.depois ?? h.antes ?? {};
+    detalhe = Object.keys(CAMPO_HIST).filter((k) => linha[k] !== null && linha[k] !== undefined && k !== 'arquivo')
+      .map((k) => `${CAMPO_HIST[k]}: ${valor(linha[k])}`).join('; ');
+  }
+  return el('p', { class: 'alt-item' },
+    el('strong', {}, `${quando} · ${h.por_nome ?? 'sistema'}`), ` ${h.operacao} · ${TABELA_HIST[h.tabela] ?? h.tabela} ${ref}`,
+    detalhe && ` — ${detalhe}`);
 }

@@ -16,7 +16,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Abre todas as abas em cada tipo de acesso, com dados simulados. Se alguma tela der erro, não publica.
+  conferir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar o navegador de teste
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Conferir as telas
+        run: node testes/conferir-telas.mjs
+
   publicar:
+    needs: conferir
     runs-on: ubuntu-latest
     environment:
       name: github-pages
