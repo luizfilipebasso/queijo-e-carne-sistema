@@ -48,7 +48,7 @@ const T = {
     { em: '2026-11-09T20:00:00Z', por_nome: 'Gerente Teste', tabela: 'erros_diarios', referencia: '2026-11-08', operacao: 'alterou', antes: { custo_cozinha: 10, erros_cozinha: 1 }, depois: { custo_cozinha: 25, erros_cozinha: 1 } },
     { em: '2026-11-03T12:00:00Z', por_nome: 'Dono Teste', tabela: 'fechamentos', referencia: '2026-10-01', operacao: 'fechou', antes: null, depois: {} },
     { em: '2026-11-02T12:00:00Z', por_nome: 'Gerente Teste', tabela: 'nutri_visitas', referencia: '2026-10-01 visita 2', operacao: 'incluiu', antes: null, depois: { nota_pct: 92, data_visita: '2026-10-28' } }],
-  metas: (UN === 'SP' ? ['f99', 'keeta', 'erros'] : []).map((indicador) => ({ indicador })),
+  metas: Object.entries(M).map(([indicador, m]) => ({ unidade: UN, indicador, vale_a_partir_de: '2026-10-01', maior_melhor: true, publico: 'todos', premio_meta: null, premio_super: null, ...m })),
 };
 const erros = [];
 addEventListener('error', (e) => erros.push(e.message));
@@ -66,12 +66,10 @@ location.hash = '';
 await import('/js/app.js?t=' + Date.now());
 await new Promise((r) => setTimeout(r, 600));
 const abas = [];
-for (const b of [...document.querySelectorAll('nav.tabs button')]) {
-  location.hash = b.dataset.aba;
-  await new Promise((r) => setTimeout(r, 700));
+const registrar = (id, nome) => {
   const conteudo = document.querySelector('.conteudo');
   abas.push({
-    id: b.dataset.aba, nome: b.textContent, letras: conteudo.innerText.length,
+    id, nome, letras: conteudo.innerText.length,
     largura: document.documentElement.scrollWidth, tela: innerWidth,
     erroNaTela: [...conteudo.querySelectorAll('.aviso-erro')].filter((e) => !e.closest('.avisos') && !e.classList.contains('et-aviso')).map((e) => e.textContent).join(' | ') || null,
     avisos: conteudo.querySelector('.avisos')?.innerText ?? null,
@@ -79,5 +77,16 @@ for (const b of [...document.querySelectorAll('nav.tabs button')]) {
     historico: conteudo.querySelector('.alt-lista')?.innerText ?? null,
     cartoes: [...conteudo.querySelectorAll('.ind-title')].map((e) => `${e.textContent} [${e.parentElement.querySelector('.ind-aud')?.textContent ?? ''}]`),
   });
+};
+for (const b of [...document.querySelectorAll('nav.tabs button')]) {
+  location.hash = b.dataset.aba;
+  await new Promise((r) => setTimeout(r, 700));
+  registrar(b.dataset.aba, b.textContent);
+  // Partes dentro da aba (Etiquetas: Imprimir, Impressões, Insumos): entram como "aba:parte".
+  for (const sub of [...document.querySelectorAll('.conteudo .et-subtabs button')].slice(1)) {
+    sub.click();
+    await new Promise((r) => setTimeout(r, 500));
+    registrar(`${b.dataset.aba}:${sub.dataset.sub}`, `${b.textContent} › ${sub.textContent}`);
+  }
 }
 export default JSON.stringify({ papel: PAPEL, un: UN, abas, erros });

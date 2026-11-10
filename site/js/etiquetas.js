@@ -129,7 +129,9 @@ export function telaEtiquetas(conteudo, ctx) {
   };
 
   const area = el('div', {});
-  const botoesAba = [['imprimir', 'Imprimir'], ['impressoes', 'Impressões']].map(([id, rotulo]) => el('button', {
+  // Insumos (dono, 10/11/2026): dono e gerente da unidade cadastram, alteram e apagam os insumos da lista.
+  const cadastra = ['dono', 'gerente'].includes(ctx.papel);
+  const botoesAba = [['imprimir', 'Imprimir'], ['impressoes', 'Impressões'], ...(cadastra ? [['insumos', 'Insumos']] : [])].map(([id, rotulo]) => el('button', {
     type: 'button', 'data-sub': id,
     onclick: () => { estado.aba = id; desenhar(); },
   }, rotulo));
@@ -162,7 +164,95 @@ export function telaEtiquetas(conteudo, ctx) {
     else await carregarListas();
     limpar(area);
     if (estado.aba === 'imprimir') montarImprimir(area);
+    else if (estado.aba === 'insumos') montarInsumos(area);
     else montarImpressoes(area);
+  }
+
+  // ----- Insumos (dono e gerente) -----
+  function montarInsumos(alvo) {
+    const METODOS = ['congelado', 'refrigerado', 'ambiente'];
+    const resumoMetodos = (i) => (i.metodos.length
+      ? i.metodos.map((m) => `${ROTULO_METODO[m.metodo]} ${m.dias} ${m.dias === 1 ? 'dia' : 'dias'}`).join(' · ')
+      : 'Sem validade');
+    let editando = null; // insumo em edição, ou null para um novo
+
+    const nome = el('input', { class: 'form-input', type: 'text', maxlength: 60, placeholder: 'Ex.: Molho da casa' });
+    const categoria = el('select', { class: 'form-input' }, CATEGORIAS.map((c) => el('option', { value: c }, c)));
+    const linhasMetodo = METODOS.map((metodo) => {
+      const usar = el('input', { type: 'checkbox' });
+      const dias = el('input', { class: 'form-input', type: 'number', min: 1, max: 3650, step: 1, placeholder: 'dias', disabled: true, 'aria-label': `Dias de validade: ${ROTULO_METODO[metodo]}` });
+      usar.addEventListener('change', () => { dias.disabled = !usar.checked; if (usar.checked) dias.focus(); });
+      return { metodo, usar, dias, bloco: el('div', { class: 'ins-metodo' }, el('label', { class: 'ins-metodo-nome' }, usar, ROTULO_METODO[metodo]), dias) };
+    });
+    const titulo = el('p', { class: 'section-title' }, 'Novo insumo');
+    const cancelar = el('button', { type: 'button', class: 'btn-sec', hidden: true, onclick: () => preencher(null) }, 'Cancelar');
+
+    function preencher(insumo) {
+      editando = insumo;
+      titulo.textContent = insumo ? `Alterar: ${insumo.nome}` : 'Novo insumo';
+      cancelar.hidden = !insumo;
+      nome.value = insumo?.nome ?? '';
+      categoria.value = insumo?.categoria ?? CATEGORIAS[0];
+      for (const l of linhasMetodo) {
+        const m = insumo?.metodos.find((x) => x.metodo === l.metodo);
+        l.usar.checked = Boolean(m);
+        l.dias.disabled = !m;
+        l.dias.value = m ? m.dias : '';
+      }
+      if (insumo) nome.focus();
+    }
+
+    const formulario = el('form', {},
+      titulo,
+      el('div', { class: 'form-row' }, el('label', { class: 'form-label' }, 'Nome', nome)),
+      el('div', { class: 'form-row' }, el('label', { class: 'form-label' }, 'Categoria', categoria)),
+      el('div', { class: 'form-row' },
+        el('p', { class: 'form-label' }, 'Formas de armazenamento e validade (em dias)'),
+        linhasMetodo.map((l) => l.bloco),
+        el('p', { class: 'et-dica' }, 'Sem nenhuma marcada, a etiqueta sai sem validade (só o nome, a data e o responsável).')),
+      el('button', { type: 'submit', class: 'btn-primary' }, 'Salvar insumo'),
+      cancelar);
+
+    formulario.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      const marcados = linhasMetodo.filter((l) => l.usar.checked);
+      const metodos = marcados.map((l) => ({ metodo: l.metodo, dias: Number(l.dias.value) }));
+      if (!nome.value.trim()) return avisar('Informe o nome do insumo.', 'erro');
+      if (metodos.some((m) => !Number.isInteger(m.dias) || m.dias < 1 || m.dias > 3650)) {
+        return avisar('Informe os dias de validade (número inteiro, a partir de 1) de cada forma marcada.', 'erro');
+      }
+      const linha = { unidade, nome: nome.value.trim(), categoria: categoria.value, metodos };
+      const { error } = editando
+        ? await supabase.from('etiqueta_insumos').update(linha).eq('id', editando.id)
+        : await supabase.from('etiqueta_insumos').insert(linha);
+      if (error) return avisar(error.code === '23505' ? 'Já existe um insumo com esse nome nesta unidade.' : 'Não foi possível salvar: ' + error.message, 'erro');
+      avisar(editando ? 'Insumo alterado.' : 'Insumo cadastrado.');
+      desenhar();
+    });
+
+    const apagar = async (insumo) => {
+      if (!confirm(`Apagar "${insumo.nome}" da lista de insumos? As etiquetas já impressas continuam no histórico.`)) return;
+      const { error } = await supabase.from('etiqueta_insumos').delete().eq('id', insumo.id);
+      if (error) return avisar('Não foi possível apagar: ' + error.message, 'erro');
+      avisar('Insumo apagado.');
+      desenhar();
+    };
+
+    const porCategoria = CATEGORIAS.map((c) => [c, estado.insumos.filter((i) => i.categoria === c)]).filter(([, itens]) => itens.length);
+    alvo.append(el('div', { class: 'et-grade' },
+      el('section', {},
+        el('p', { class: 'section-title' }, 'Insumos cadastrados'),
+        el('p', { class: 'section-desc' }, `Unidade ${ctx.unidade.nome} · ${estado.insumos.length} insumo(s)`),
+        porCategoria.length
+          ? porCategoria.map(([c, itens]) => el('div', { class: 'ins-categoria' },
+            el('p', { class: 'form-label' }, c),
+            itens.map((i) => el('div', { class: 'pessoa-row' },
+              el('div', { class: 'pessoa-info' }, el('div', { class: 'pessoa-nome' }, i.nome), el('div', { class: 'pessoa-meta' }, resumoMetodos(i))),
+              el('button', { type: 'button', class: 'btn-sec', onclick: () => { preencher(i); formulario.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, 'Alterar'),
+              el('button', { type: 'button', class: 'btn-sec btn-perigo', onclick: () => apagar(i) }, 'Apagar')))))
+          : el('p', { class: 'et-dica' }, 'Nenhum insumo cadastrado nesta unidade.')),
+      el('section', { class: 'et-lado' }, formulario)));
+    preencher(null);
   }
 
   // ----- Imprimir -----

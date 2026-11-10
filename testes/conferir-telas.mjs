@@ -10,9 +10,9 @@ import { chromium } from 'playwright';
 const BASE = 'http://localhost:5173';
 // [descrição, parâmetros, abas esperadas (na ordem)]
 const CASOS = [
-  ['dono em SM', 'papel=dono&un=SM', ['painel', 'indicadores', 'comparar', 'lancamentos', 'etiquetas', 'links', 'pessoas']],
-  ['dono em SP, mês encerrado', 'papel=dono&un=SP&enc=1', ['painel', 'indicadores', 'comparar', 'lancamentos', 'etiquetas', 'links', 'pessoas']],
-  ['dono em SM, mês fechado', 'papel=dono&un=SM&fech=1', ['painel', 'indicadores', 'comparar', 'lancamentos', 'etiquetas', 'links', 'pessoas']],
+  ['dono em SM', 'papel=dono&un=SM', ['painel', 'indicadores', 'comparar', 'lancamentos', 'etiquetas', 'links', 'metas', 'pessoas']],
+  ['dono em SP, mês encerrado', 'papel=dono&un=SP&enc=1', ['painel', 'indicadores', 'comparar', 'lancamentos', 'etiquetas', 'links', 'metas', 'pessoas']],
+  ['dono em SM, mês fechado', 'papel=dono&un=SM&fech=1', ['painel', 'indicadores', 'comparar', 'lancamentos', 'etiquetas', 'links', 'metas', 'pessoas']],
   ['gerente em SM', 'papel=gerente&un=SM', ['painel', 'indicadores', 'lancamentos', 'etiquetas', 'links']],
   ['gerente em SP, sem avisos', 'papel=gerente&un=SP&semavisos=1', ['painel', 'indicadores', 'lancamentos', 'etiquetas', 'links']],
   ['Cozinha em SM, projeção de burgers', 'papel=funcionario&un=SM&setor=cozinha&bv=6000', ['indicadores', 'etiquetas', 'links']],
@@ -40,7 +40,7 @@ try {
         await pagina.goto(`${BASE}/?${parametros}`);
         const r = JSON.parse(await pagina.evaluate(async () => (await import('/_testes/simulacao.js')).default));
         if (r.erros.length) falhas.push(`${caso}: erro de código: ${r.erros.join(' | ')}`);
-        const abas = r.abas.map((a) => a.id);
+        const abas = r.abas.map((a) => a.id).filter((id) => !id.includes(':'));
         if (abas.join() !== abasEsperadas.join()) falhas.push(`${caso}: abas ${abas.join()} (esperado ${abasEsperadas.join()})`);
         for (const a of r.abas) {
           if (a.letras < MIN_LETRAS) falhas.push(`${caso}: aba ${a.nome} quase vazia (${a.letras} letras)`);

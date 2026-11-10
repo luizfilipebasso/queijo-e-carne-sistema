@@ -7,6 +7,7 @@ import { telaIndicadores } from './indicadores.js';
 import { telaComparar } from './comparar.js';
 import { telaEtiquetas } from './etiquetas.js';
 import { telaLinks } from './links.js';
+import { telaMetas } from './metas.js';
 import { mesAtual, mesesDisponiveis, nomeMes } from './meses.js';
 
 const raiz = document.getElementById('app');
@@ -140,7 +141,8 @@ function abasDe(ctx) {
   // Etiquetas: liberada também para dono e gerente (dono, 08/10/2026).
   // Links importantes também para dono e gerente: são eles que enviam os PDFs (dono, 15/10/2026).
   const abas = [['painel', 'Painel'], ['indicadores', 'Desempenho'], ...comparar, ['lancamentos', 'Lançamentos'], ['etiquetas', 'Etiquetas'], ['links', 'Links importantes']];
-  if (ctx.papel === 'dono') abas.push(['pessoas', 'Pessoas']);
+  // Metas (só o dono; dono, 10/11/2026): muda metas e prêmios da unidade "a partir do mês tal".
+  if (ctx.papel === 'dono') abas.push(['metas', 'Metas'], ['pessoas', 'Pessoas']);
   return abas;
 }
 
@@ -182,6 +184,7 @@ function montarSistema(ctx) {
     else if (id === 'comparar') telaComparar(conteudo, ctx);
     else if (id === 'etiquetas') telaEtiquetas(conteudo, ctx);
     else if (id === 'links') telaLinks(conteudo, ctx);
+    else if (id === 'metas') telaMetas(conteudo, ctx);
   };
   window.onhashchange = mostrar;
 

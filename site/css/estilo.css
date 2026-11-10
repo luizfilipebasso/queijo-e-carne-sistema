@@ -151,6 +151,17 @@ footer { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px
 .avisos { display: grid; gap: 10px; margin-bottom: 16px; }
 .avisos-lista { margin: 6px 0 0; padding-left: 18px; }
 .avisos-lista li + li { margin-top: 2px; }
+.meta-item { border-bottom: 1px solid var(--line); }
+.meta-item:last-child { border-bottom: 0; }
+.meta-item .pessoa-row { border-bottom: 0; }
+.meta-form { padding: 4px 0 18px; max-width: 520px; }
+.meta-form .form-label .form-input, .ins-metodo .form-input, form .form-label > .form-input { margin-top: 6px; }
+.meta-agendada { color: var(--accent-ink); }
+.ins-categoria { margin-bottom: 18px; }
+.ins-metodo { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 10px; align-items: center; margin-bottom: 8px; }
+.ins-metodo .form-input { margin-top: 0; }
+.ins-metodo-nome { display: flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--ink); }
+.ins-metodo-nome input { width: 18px; height: 18px; accent-color: var(--accent); }
 .alt-lista { display: grid; gap: 8px; margin-top: 12px; }
 .alt-item { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .alt-item:last-child { border-bottom: 0; padding-bottom: 0; }
